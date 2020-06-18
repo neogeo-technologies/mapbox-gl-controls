@@ -51,7 +51,13 @@
     margin-left: -11px;
     margin-top: -11px;
   }
-.mapboxgl-ctrl-ruler button.-active svg {
+.mapboxgl-ctrl-area {
+  color: red;
+}
+.mapboxgl-ctrl-area button.-active svg {
+        fill: #4264fb;
+      }
+.mapboxgl-ctrl-ruler button.-active svg path {
         fill: #4264fb;
       }
 .mapboxgl-ctrl-styles {

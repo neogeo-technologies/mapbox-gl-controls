@@ -1,7 +1,8 @@
-.mapboxgl-ctrl-ruler {
+.mapboxgl-ctrl-area {
+  color: red;
   button {
     &.-active {
-      svg path {
+      svg {
         fill: #4264fb;
       }
     }
