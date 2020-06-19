@@ -57,7 +57,7 @@
 .mapboxgl-ctrl-area button.-active svg {
         fill: #4264fb;
       }
-.mapboxgl-ctrl-ruler button.-active svg path {
+.mapboxgl-ctrl-ruler button.-active svg {
         fill: #4264fb;
       }
 .mapboxgl-ctrl-styles {
