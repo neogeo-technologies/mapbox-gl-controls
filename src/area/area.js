@@ -1,7 +1,6 @@
 import mapboxgl from 'mapbox-gl';
 import distance from '@turf/distance';
 import area from '@turf/area';
-import center from '@turf/center';
 import centroid from '@turf/centroid';
 import { polygon } from '@turf/helpers';
 import iconArea from './area.svg';
@@ -12,8 +11,9 @@ const LAYER_SYMBOL = 'controls-layer-symbol';
 const SOURCE_POLYGON = 'controls-source-polygon';
 const SOURCE_AREA = 'controls-source-area';
 const SOURCE_SYMBOL = 'controls-source-symbol';
-const MAIN_COLOR = '#263238';
+const MAIN_COLOR = 'orange';
 const HALO_COLOR = '#fff';
+const TEXT_COLOR = '#263238';
 
 function geoPolygon(coordinates = []) {
   return {
@@ -73,6 +73,10 @@ function formatArea(value) {
   return nbchar;
 }
 
+/**
+ *
+ * @param {*} number
+ */
 function defaultLabelFormat(number) {
   if (number < 1) {
     return `${(number * 1000).toFixed()} m`;
@@ -86,16 +90,30 @@ function calculatePolygonSuperficy(coordinates) {
   return formatArea(areaPolygon);
 }
 
+/**
+* @param {Object} options
+* @param {String} [options.units='square-kilometers']
+* @param {Function} [options.labelFormat] - Accepts number and returns label.
+* Can be used to convert value to hectare, are, centiare.
+* @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
+* @param {String} [options.mainColor='#263238'] - Color of ruler lines.
+* @param {String} [options.secondaryColor='#fff'] - Color of halo and inner marker background.
+*/
+
 export default class AreaControl {
   constructor(options = {}) {
+    this.numberOfPolygons = 0;
+    this.isPolygonClosed = true;
     this.isMeasuring = false;
     this.markers = [];
+    this.markerNodes = [];
     this.coordinates = [];
     this.labels = [];
     this.units = options.units || 'kilometers';
     this.font = options.font || ['Roboto Medium'];
     this.labelFormat = options.labelFormat || defaultLabelFormat;
     this.mainColor = options.mainColor || MAIN_COLOR;
+    this.textColor = options.textColor || TEXT_COLOR;
     this.secondaryColor = options.secondaryColor || HALO_COLOR;
     this.mapClickListener = this.mapClickListener.bind(this);
     this.mapMouseMoveListener = this.mapMouseMoveListener.bind(this);
@@ -131,45 +149,58 @@ export default class AreaControl {
     this.isMeasuring = false;
     this.map.getCanvas().style.cursor = '';
     this.button.classList.remove('-active');
-    // remove layers, sources and event listeners
-    this.map.removeLayer(LAYER_POLYGON);
-    this.map.removeLayer(LAYER_SYMBOL);
-    this.map.removeSource(SOURCE_POLYGON);
-    this.map.removeSource(SOURCE_SYMBOL);
-    this.map.removeSource(SOURCE_AREA);
-    this.map.removeSource(LAYER_AREA);
-    this.markers.forEach((m) => m.remove());
+
+    // Remove layers, sources and event listeners for each polygon
+    for (let i = 1; i <= this.numberOfPolygons; i += 1) {
+      this.map.removeLayer(LAYER_POLYGON + i);
+      this.map.removeLayer(LAYER_SYMBOL + i);
+      this.map.removeSource(SOURCE_POLYGON + i);
+      this.map.removeSource(SOURCE_SYMBOL + i);
+      if (this.map.getSource(SOURCE_AREA + i)) {
+        this.map.removeLayer(LAYER_AREA + i);
+        this.map.removeSource(SOURCE_AREA + i);
+      }
+      this.markers[i].forEach((m) => m.remove());
+    }
+
     this.map.off('click', this.mapClickListener);
     this.map.off('mousemove', this.mapMouseMoveListener);
     this.map.off('style.load', this.styleLoadListener);
+    this.numberOfPolygons = 0;
     this.map.fire('area.off');
   }
 
   draw() {
-    this.map.addSource(SOURCE_POLYGON, {
+    this.numberOfPolygons += 1;
+
+    this.coordinates = [];
+    this.markers[this.numberOfPolygons] = [];
+    this.isPolygonClosed = false;
+    this.map.addSource(SOURCE_POLYGON + this.numberOfPolygons, {
       type: 'geojson',
       data: geoPolygon(this.coordinates),
     });
 
-    this.map.addSource(SOURCE_SYMBOL, {
+    this.map.addSource(SOURCE_SYMBOL + this.numberOfPolygons, {
       type: 'geojson',
       data: geoPoint(this.coordinates, this.labels),
     });
 
     this.map.addLayer({
-      id: LAYER_POLYGON,
+      id: LAYER_POLYGON + this.numberOfPolygons,
       type: 'fill',
-      source: SOURCE_POLYGON,
+      source: SOURCE_POLYGON + this.numberOfPolygons,
       paint: {
         'fill-color': this.mainColor,
-        'fill-opacity': 0.5,
+        'fill-opacity': 0.3,
+        'fill-outline-color': 'blue',
       },
     });
 
     this.map.addLayer({
-      id: LAYER_SYMBOL,
+      id: LAYER_SYMBOL + this.numberOfPolygons,
       type: 'symbol',
-      source: SOURCE_SYMBOL,
+      source: SOURCE_SYMBOL + this.numberOfPolygons,
       layout: {
         'text-field': '{text}',
         'text-font': this.font,
@@ -178,7 +209,7 @@ export default class AreaControl {
         'text-offset': [0, 0.8],
       },
       paint: {
-        'text-color': this.mainColor,
+        'text-color': this.textColor,
         'text-halo-color': this.secondaryColor,
         'text-halo-width': 1,
       },
@@ -186,109 +217,99 @@ export default class AreaControl {
   }
 
   mapClickListener(event) {
+    if (this.isPolygonClosed) {
+      this.draw();
+    } else {
+      const markerNode = this.createMarkerNode();
+      const marker = new mapboxgl.Marker({
+        element: markerNode,
+        draggable: false,
+      })
+        .setLngLat(event.lngLat)
+        .addTo(this.map);
+
+      this.coordinates.push([event.lngLat.lng, event.lngLat.lat]);
+      this.labels = this.coordinatesToLabels();
+      this.map.getSource(SOURCE_POLYGON + this.numberOfPolygons)
+        .setData(geoPolygon([this.coordinates]));
+      this.map
+        .getSource(SOURCE_SYMBOL + this.numberOfPolygons)
+        .setData(geoPoint(this.coordinates, this.labels));
+
+      this.markers[this.numberOfPolygons].push(marker);
+
+      this.markerNodes.push(markerNode);
+
+      // Add event click for the first point marker
+      markerNode.addEventListener('click', this.closePolygon.bind(this));
+
+      // Close if we click on the last node.
+      if (this.coordinates.length > 2) {
+        this.markerNodes[this.coordinates.length - 2].removeEventListener('click', this.closePolygon.bind(this));
+      }
+    }
+  }
+
+  createMarkerNode() {
     const markerNode = document.createElement('div');
-    markerNode.style.width = '12px';
-    markerNode.style.height = '12px';
+    markerNode.style.width = '7px';
+    markerNode.style.height = '7px';
     markerNode.style.borderRadius = '50%';
     markerNode.style.background = this.secondaryColor;
     markerNode.style.boxSizing = 'border-box';
-    markerNode.style.border = `2px solid ${this.mainColor}`;
-    const marker = new mapboxgl.Marker({
-      element: markerNode,
-      draggable: true,
-    })
-      .setLngLat(event.lngLat)
-      .addTo(this.map);
-    this.coordinates.push([event.lngLat.lng, event.lngLat.lat]);
-    this.labels = this.coordinatesToLabels();
-    this.map.getSource(SOURCE_POLYGON).setData(geoPolygon([this.coordinates]));
-    this.map
-      .getSource(SOURCE_SYMBOL)
-      .setData(geoPoint(this.coordinates, this.labels));
-    this.markers.push(marker);
+    markerNode.style.border = `2px solid ${this.textColor}`;
+    return markerNode;
+  }
 
-    marker.on('drag', () => {
-      const index = this.markers.indexOf(marker);
-      const lngLat = marker.getLngLat();
-      this.coordinates[index] = [lngLat.lng, lngLat.lat];
-      // If it is the first or last position, we need to have equivalent to keep the polygon valid.
-      if (index === 0) {
-        this.coordinates[this.coordinates.length - 1] = [
-          lngLat.lng,
-          lngLat.lat,
-        ];
-      } else if (index === this.coordinates.length - 1) {
-        this.coordinates[0] = [lngLat.lng, lngLat.lat];
-      }
+  closePolygon() {
+    const firstMarker = this.markers[this.numberOfPolygons][0];
+    this.coordinates.push([firstMarker.getLngLat().lng, firstMarker.getLngLat().lat]);
 
-      this.labels = this.coordinatesToLabels();
-      this.map
-        .getSource(SOURCE_POLYGON)
-        .setData(geoPolygon([this.coordinates]));
-      this.map
-        .getSource(SOURCE_SYMBOL)
-        .setData(geoPoint(this.coordinates, this.labels));
+    // Display the area
+    const centroidPoly = centroid(polygon([this.coordinates]));
+    const textArea = calculatePolygonSuperficy(polygon([this.coordinates]));
+    centroidPoly.properties.area = textArea;
 
-      // Update the area layer
-      const centroidPoly = center(polygon([this.coordinates]));
-      const textArea = calculatePolygonSuperficy(polygon([this.coordinates]));
-      centroidPoly.properties.area = textArea;
-      this.map.getSource(SOURCE_AREA).setData(centroidPoly);
+    this.map.addSource(SOURCE_AREA + this.numberOfPolygons, {
+      type: 'geojson',
+      data: centroidPoly,
     });
 
-    marker.on('dragend', () => {
-      console.log(this.coordinates);
+    this.map.addLayer({
+      id: LAYER_AREA + this.numberOfPolygons,
+      type: 'symbol',
+      source: SOURCE_AREA + this.numberOfPolygons,
+      layout: {
+        'text-field': '{area}',
+        'text-font': this.font,
+        'text-anchor': 'center',
+        'text-size': 14,
+        'text-justify': 'auto',
+      },
+      paint: {
+        'text-color': this.textColor,
+        'text-halo-color': this.secondaryColor,
+        'text-halo-width': 1,
+      },
     });
 
-    // Add event click for the first point marker
-    if (this.coordinates.length === 1) {
-      markerNode.addEventListener('click', () => {
-        this.coordinates.push([event.lngLat.lng, event.lngLat.lat]);
+    this.map.getSource(SOURCE_AREA + this.numberOfPolygons).setData(centroidPoly);
 
-        this.map.off('click', this.mapClickListener);
-        this.map.off('mousemove', this.mapMouseMoveListener);
-        this.map.getCanvas().style.cursor = '';
-
-        // Display the area
-
-        const centroidPoly = center(polygon([this.coordinates]));
-        const textArea = calculatePolygonSuperficy(polygon([this.coordinates]));
-        centroidPoly.properties.area = textArea;
-
-        this.map.addSource(SOURCE_AREA, {
-          type: 'geojson',
-          data: centroidPoly,
-        });
-
-        this.map.addLayer({
-          id: LAYER_AREA,
-          type: 'symbol',
-          source: SOURCE_AREA,
-          layout: {
-            'text-field': '{area}',
-            'text-font': this.font,
-            'text-anchor': 'center',
-            'text-size': 12,
-          },
-          paint: {
-            'text-color': this.mainColor,
-            'text-halo-color': this.secondaryColor,
-            'text-halo-width': 1,
-          },
-        });
-      });
-    }
+    this.isPolygonClosed = true;
+    this.coordinates = [];
+    this.markerNodes = [];
+    this.labels = [];
   }
 
   mapMouseMoveListener(event) {
     // Draw polygon only if more than two points
-
     if (this.coordinates.length > 1) {
       const { lngLat } = event;
       const temporaryCoordinates = [...this.coordinates];
       temporaryCoordinates.push([lngLat.lng, lngLat.lat]);
+      temporaryCoordinates.push(temporaryCoordinates[0]); // Close artifially the polygon to draw it
       this.map
-        .getSource(SOURCE_POLYGON)
+        .getSource(SOURCE_POLYGON + this.numberOfPolygons)
         .setData(geoPolygon([temporaryCoordinates]));
     }
   }
