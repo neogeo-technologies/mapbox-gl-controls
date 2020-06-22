@@ -3692,7 +3692,7 @@
 	    this.button.classList.remove('-active');
 
 	    // Remove layers, sources and event listeners for each polygon
-	    for (let i = 0; i < this.indexOfPolygons(); i += 1) {
+	    for (let i = 0; i <= this.indexOfPolygons(); i += 1) {
 	      this.map.removeLayer(LAYER_POLYGON + i);
 	      this.map.removeLayer(LAYER_SYMBOL$1 + i);
 	      this.map.removeSource(SOURCE_POLYGON + i);
@@ -3703,7 +3703,8 @@
 	      }
 	      this.polygons[i].markers.forEach((m) => m.remove());
 	    }
-
+	    this.polygons = [];
+	    this.isPolygonClosed = true;
 	    this.map.off('click', this.mapClickListener);
 	    this.map.off('mousemove', this.mapMouseMoveListener);
 	    this.map.off('style.load', this.styleLoadListener);
