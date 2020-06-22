@@ -1386,7 +1386,8 @@
 	/**
 	 * Fires map `ruler.on` and `ruler.off`events at the beginning and at the end of measuring.
 	 * @param {Object} options
-	 * @param {String} [options.units='kilometers'] - Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
+	 * @param {String} [options.units='kilometers'] -
+	 * Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
 	 * @param {Function} [options.labelFormat] - Accepts number and returns label.
 	 * Can be used to convert value to any measuring units
 	 * @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
@@ -3629,7 +3630,6 @@
 
 	function calculatePolygonSuperficy(coordinates) {
 	  const areaPolygon = area(coordinates);
-
 	  return formatArea(areaPolygon);
 	}
 
@@ -3645,13 +3645,9 @@
 
 	class AreaControl {
 	  constructor(options = {}) {
-	    this.numberOfPolygons = 0;
 	    this.isPolygonClosed = true;
 	    this.isMeasuring = false;
-	    this.markers = [];
-	    this.markerNodes = [];
-	    this.coordinates = [];
-	    this.labels = [];
+	    this.polygons = [];
 	    this.units = options.units || 'kilometers';
 	    this.font = options.font || ['Roboto Medium'];
 	    this.labelFormat = options.labelFormat || defaultLabelFormat$1;
@@ -3661,6 +3657,10 @@
 	    this.mapClickListener = this.mapClickListener.bind(this);
 	    this.mapMouseMoveListener = this.mapMouseMoveListener.bind(this);
 	    this.styleLoadListener = this.styleLoadListener.bind(this);
+	  }
+
+	  indexOfPolygons() {
+	    return this.polygons.length - 1;
 	  }
 
 	  insertControls() {
@@ -3676,12 +3676,10 @@
 
 	  measuringOn() {
 	    this.isMeasuring = true;
-	    this.markers = [];
-	    this.coordinates = [];
-	    this.labels = [];
 	    this.map.getCanvas().style.cursor = 'crosshair';
 	    this.button.classList.add('-active');
-	    this.draw();
+	    this.initPolygon();
+	    this.addSourcesAndLayers(this.indexOfPolygons());
 	    this.map.on('click', this.mapClickListener);
 	    this.map.on('mousemove', this.mapMouseMoveListener);
 	    this.map.on('style.load', this.styleLoadListener);
@@ -3694,7 +3692,7 @@
 	    this.button.classList.remove('-active');
 
 	    // Remove layers, sources and event listeners for each polygon
-	    for (let i = 1; i <= this.numberOfPolygons; i += 1) {
+	    for (let i = 0; i < this.indexOfPolygons(); i += 1) {
 	      this.map.removeLayer(LAYER_POLYGON + i);
 	      this.map.removeLayer(LAYER_SYMBOL$1 + i);
 	      this.map.removeSource(SOURCE_POLYGON + i);
@@ -3703,36 +3701,67 @@
 	        this.map.removeLayer(LAYER_AREA + i);
 	        this.map.removeSource(SOURCE_AREA + i);
 	      }
-	      this.markers[i].forEach((m) => m.remove());
+	      this.polygons[i].markers.forEach((m) => m.remove());
 	    }
 
 	    this.map.off('click', this.mapClickListener);
 	    this.map.off('mousemove', this.mapMouseMoveListener);
 	    this.map.off('style.load', this.styleLoadListener);
-	    this.numberOfPolygons = 0;
 	    this.map.fire('area.off');
 	  }
 
-	  draw() {
-	    this.numberOfPolygons += 1;
-
-	    this.coordinates = [];
-	    this.markers[this.numberOfPolygons] = [];
+	  // Create a new polygon
+	  initPolygon() {
+	    this.polygons.push({});
+	    this.polygons[this.indexOfPolygons()] = {};
+	    this.polygons[this.indexOfPolygons()].coordinates = [];
+	    this.polygons[this.indexOfPolygons()].markers = [];
+	    this.polygons[this.indexOfPolygons()].markerNodes = [];
 	    this.isPolygonClosed = false;
-	    this.map.addSource(SOURCE_POLYGON + this.numberOfPolygons, {
-	      type: 'geojson',
-	      data: geoPolygon(this.coordinates),
-	    });
+	  }
 
-	    this.map.addSource(SOURCE_SYMBOL$1 + this.numberOfPolygons, {
+	  // When a new style is loaded (e.g. Satellite), we need to draw again all the layers
+	  drawAllLayers() {
+	    for (let i = 0; i <= this.indexOfPolygons(); i += 1) {
+	      this.addSourcesAndLayers(i);
+
+	      // #Fix. This is tricky, and maybe there is a simpler way, but the style.load event is not enough for this case.
+	      // Events in Mapbox are a bit messy, and we need to listen also this styledata (when any style changes)
+	      // to re-draw our layers, otherwise they will be under the new Tiles loaded.
+	      this.map.on('styledata', () => {
+	        if (this.map.getSource(SOURCE_POLYGON + i)) {
+	          this.map.getSource(SOURCE_POLYGON + i)
+	            .setData(geoPolygon([this.polygons[i].coordinates]));
+	          this.map
+	            .getSource(SOURCE_SYMBOL$1 + i)
+	            .setData(geoPoint$1(this.polygons[i].coordinates,
+	              this.polygons[i].labels));
+
+	          if (this.polygons[i].coordinates.length > 3) {
+	            const centroidPoly = centroid(helpers_9([this.polygons[i].coordinates]));
+	            const textArea = calculatePolygonSuperficy(helpers_9([this.polygons[i].coordinates]));
+	            centroidPoly.properties.area = textArea;
+	            this.map.getSource(SOURCE_AREA + i).setData(centroidPoly);
+	          }
+	          // When our layers, we can unsubscribe for this event.
+	          this.map.off('styledata');
+	        }
+	      });
+	    }
+	  }
+
+	  // Create the sources and layers for a polygon
+	  addSourcesAndLayers(polygonNumber) {
+	    // The polygon itself
+	    this.map.addSource(SOURCE_POLYGON + polygonNumber, {
 	      type: 'geojson',
-	      data: geoPoint$1(this.coordinates, this.labels),
+	      data: geoPolygon(this.polygons[polygonNumber].coordinates),
 	    });
 
 	    this.map.addLayer({
-	      id: LAYER_POLYGON + this.numberOfPolygons,
+	      id: LAYER_POLYGON + polygonNumber,
 	      type: 'fill',
-	      source: SOURCE_POLYGON + this.numberOfPolygons,
+	      source: SOURCE_POLYGON + polygonNumber,
 	      paint: {
 	        'fill-color': this.mainColor,
 	        'fill-opacity': 0.3,
@@ -3740,10 +3769,17 @@
 	      },
 	    });
 
+	    // The distance points and symbols
+	    this.map.addSource(SOURCE_SYMBOL$1 + polygonNumber, {
+	      type: 'geojson',
+	      data: geoPoint$1(this.polygons[polygonNumber].coordinates,
+	        this.polygons[polygonNumber].labels),
+	    });
+
 	    this.map.addLayer({
-	      id: LAYER_SYMBOL$1 + this.numberOfPolygons,
+	      id: LAYER_SYMBOL$1 + polygonNumber,
 	      type: 'symbol',
-	      source: SOURCE_SYMBOL$1 + this.numberOfPolygons,
+	      source: SOURCE_SYMBOL$1 + polygonNumber,
 	      layout: {
 	        'text-field': '{text}',
 	        'text-font': this.font,
@@ -3757,11 +3793,40 @@
 	        'text-halo-width': 1,
 	      },
 	    });
+
+	    // The area of the polygon
+	    this.map.addSource(SOURCE_AREA + polygonNumber, {
+	      type: 'geojson',
+	      data: geoPoint$1(),
+	    });
+
+	    this.map.addLayer({
+	      id: LAYER_AREA + polygonNumber,
+	      type: 'symbol',
+	      source: SOURCE_AREA + polygonNumber,
+	      layout: {
+	        'text-field': '{area}',
+	        'text-font': this.font,
+	        'text-anchor': 'center',
+	        'text-size': 14,
+	        'text-justify': 'auto',
+	      },
+	      paint: {
+	        'text-color': this.textColor,
+	        'text-halo-color': this.secondaryColor,
+	        'text-halo-width': 1,
+	      },
+	    });
 	  }
 
+	  // On a click on the map:
+	  // * create a marker
+	  // * update the polygon and symbols (distance) sources
+	  // * calculate and display the area
 	  mapClickListener(event) {
 	    if (this.isPolygonClosed) {
-	      this.draw();
+	      this.initPolygon();
+	      this.addSourcesAndLayers(this.indexOfPolygons());
 	    } else {
 	      const markerNode = this.createMarkerNode();
 	      const marker = new mapboxGl.Marker({
@@ -3771,24 +3836,39 @@
 	        .setLngLat(event.lngLat)
 	        .addTo(this.map);
 
-	      this.coordinates.push([event.lngLat.lng, event.lngLat.lat]);
-	      this.labels = this.coordinatesToLabels();
-	      this.map.getSource(SOURCE_POLYGON + this.numberOfPolygons)
-	        .setData(geoPolygon([this.coordinates]));
+	      // Update the polygon and symbol sources with the new data
+	      this.polygons[this.indexOfPolygons()].coordinates.push([event.lngLat.lng, event.lngLat.lat]);
+	      this.polygons[this.indexOfPolygons()].labels = this.coordinatesToLabels(this.indexOfPolygons());
+	      this.map.getSource(SOURCE_POLYGON + this.indexOfPolygons())
+	        .setData(geoPolygon([this.polygons[this.indexOfPolygons()].coordinates]));
 	      this.map
-	        .getSource(SOURCE_SYMBOL$1 + this.numberOfPolygons)
-	        .setData(geoPoint$1(this.coordinates, this.labels));
+	        .getSource(SOURCE_SYMBOL$1 + this.indexOfPolygons())
+	        .setData(geoPoint$1(this.polygons[this.indexOfPolygons()].coordinates,
+	          this.polygons[this.indexOfPolygons()].labels));
 
-	      this.markers[this.numberOfPolygons].push(marker);
+	      this.polygons[this.indexOfPolygons()].markers.push(marker);
+	      this.polygons[this.indexOfPolygons()].markerNodes.push(markerNode);
 
-	      this.markerNodes.push(markerNode);
+	      // Calculate and display the area
+	      if (this.polygons[this.indexOfPolygons()].coordinates.length > 2) {
+	        const temporaryCoordinates = [...this.polygons[this.indexOfPolygons()].coordinates];
+	        temporaryCoordinates.push(temporaryCoordinates[0]); // Close artifially the polygon to draw it
+	        const centroidPoly = centroid(helpers_9([temporaryCoordinates]));
+	        const textArea = calculatePolygonSuperficy(helpers_9([temporaryCoordinates]));
+	        centroidPoly.properties.area = textArea;
+	        this.map.getSource(SOURCE_AREA + this.indexOfPolygons()).setData(centroidPoly);
+	      }
 
-	      // Add event click for the first point marker
+	      // This event is used to know when to close the polygon. two points allow that:
+	      // * the first point
+	      // * the last point
 	      markerNode.addEventListener('click', this.closePolygon.bind(this));
 
-	      // Close if we click on the last node.
-	      if (this.coordinates.length > 2) {
-	        this.markerNodes[this.coordinates.length - 2].removeEventListener('click', this.closePolygon.bind(this));
+	      // So to keep the logic above working, after each new point we unsubscribe the click event on previous marker,
+	      // to keep active only the first and last markers.
+	      if (this.polygons[this.indexOfPolygons()].coordinates.length > 2) {
+	        this.polygons[this.indexOfPolygons()].markerNodes[this.polygons[this.indexOfPolygons()].coordinates.length - 2]
+	          .removeEventListener('click', this.closePolygon.bind(this));
 	      }
 	    }
 	  }
@@ -3805,70 +3885,40 @@
 	  }
 
 	  closePolygon() {
-	    const firstMarker = this.markers[this.numberOfPolygons][0];
-	    this.coordinates.push([firstMarker.getLngLat().lng, firstMarker.getLngLat().lat]);
-
-	    // Display the area
-	    const centroidPoly = centroid(helpers_9([this.coordinates]));
-	    const textArea = calculatePolygonSuperficy(helpers_9([this.coordinates]));
-	    centroidPoly.properties.area = textArea;
-
-	    this.map.addSource(SOURCE_AREA + this.numberOfPolygons, {
-	      type: 'geojson',
-	      data: centroidPoly,
-	    });
-
-	    this.map.addLayer({
-	      id: LAYER_AREA + this.numberOfPolygons,
-	      type: 'symbol',
-	      source: SOURCE_AREA + this.numberOfPolygons,
-	      layout: {
-	        'text-field': '{area}',
-	        'text-font': this.font,
-	        'text-anchor': 'center',
-	        'text-size': 14,
-	        'text-justify': 'auto',
-	      },
-	      paint: {
-	        'text-color': this.textColor,
-	        'text-halo-color': this.secondaryColor,
-	        'text-halo-width': 1,
-	      },
-	    });
-
-	    this.map.getSource(SOURCE_AREA + this.numberOfPolygons).setData(centroidPoly);
+	    const firstMarker = this.polygons[this.indexOfPolygons()].markers[0];
+	    this.polygons[this.indexOfPolygons()].coordinates.push(
+	      [firstMarker.getLngLat().lng, firstMarker.getLngLat().lat],
+	    );
 
 	    this.isPolygonClosed = true;
-	    this.coordinates = [];
-	    this.markerNodes = [];
-	    this.labels = [];
 	  }
 
+	  // On mouse move, we update the polygon drawing
 	  mapMouseMoveListener(event) {
-	    // Draw polygon only if more than two points
-	    if (this.coordinates.length > 1) {
+	    if (this.polygons[this.indexOfPolygons()].coordinates.length > 1) {
 	      const { lngLat } = event;
-	      const temporaryCoordinates = [...this.coordinates];
+	      const temporaryCoordinates = [...this.polygons[this.indexOfPolygons()].coordinates];
 	      temporaryCoordinates.push([lngLat.lng, lngLat.lat]);
 	      temporaryCoordinates.push(temporaryCoordinates[0]); // Close artifially the polygon to draw it
 	      this.map
-	        .getSource(SOURCE_POLYGON + this.numberOfPolygons)
+	        .getSource(SOURCE_POLYGON + this.indexOfPolygons())
 	        .setData(geoPolygon([temporaryCoordinates]));
 	    }
 	  }
 
-	  coordinatesToLabels() {
-	    const { coordinates, units, labelFormat } = this;
+	  coordinatesToLabels(numberOfPolygons) {
+	    const { coordinates } = this.polygons[numberOfPolygons];
+	    const { units } = this;
 	    let sum = 0;
 	    return coordinates.map((coordinate, index) => {
 	      if (index === 0) return 0;
 	      sum += distance(coordinates[index - 1], coordinates[index], { units });
-	      return labelFormat(sum);
+	      return this.labelFormat(sum);
 	    });
 	  }
 
 	  styleLoadListener() {
-	    this.draw();
+	    this.drawAllLayers();
 	  }
 
 	  onAdd(map) {

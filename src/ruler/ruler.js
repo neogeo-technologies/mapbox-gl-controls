@@ -46,7 +46,8 @@ function defaultLabelFormat(number) {
 /**
  * Fires map `ruler.on` and `ruler.off`events at the beginning and at the end of measuring.
  * @param {Object} options
- * @param {String} [options.units='kilometers'] - Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
+ * @param {String} [options.units='kilometers'] -
+ * Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
  * @param {Function} [options.labelFormat] - Accepts number and returns label.
  * Can be used to convert value to any measuring units
  * @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
