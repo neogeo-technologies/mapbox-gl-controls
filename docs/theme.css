@@ -54,8 +54,11 @@
 .mapboxgl-ctrl-ruler button.-active svg {
         fill: #4264fb;
       }
-.mapboxgl-ctrl-circle button.-active svg path {
-        stroke: #4264fb;
+.mapboxgl-ctrl-circle button svg {
+      height: 21px;
+    }
+.mapboxgl-ctrl-circle button.-active svg g {
+        fill: #4264fb;
       }
 .mapboxgl-ctrl-styles {
   display: flex;

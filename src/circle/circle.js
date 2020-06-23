@@ -71,13 +71,6 @@ function formatArea(value) {
   return nbchar;
 }
 
-function defaultLabelFormat(number) {
-  if (number < 1) {
-    return `${(number * 1000).toFixed()} m`;
-  }
-  return `${number.toFixed(2)} km`;
-}
-
 function calculateCircleArea(radius) {
   const radiusInMeters = radius * 1000;
   const area = Math.round(2 * Math.PI * radiusInMeters * radiusInMeters);
@@ -85,11 +78,10 @@ function calculateCircleArea(radius) {
 }
 
 /**
- * Fires map `ruler.on` and `ruler.off`events at the beginning and at the end of measuring.
+ * Fires map `circle.on` and `circle.off`events at the beginning and at the end of measuring.
  * @param {Object} options
  * @param {String} [options.units='kilometers'] -
  * Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
- * @param {Function} [options.labelFormat] - Accepts number and returns label.
  * Can be used to convert value to any measuring units
  * @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
  * @param {String} [options.mainColor='#263238'] - Color of ruler lines.
@@ -102,7 +94,6 @@ export default class CircleControl {
     this.circles = [];
     this.units = options.units || 'kilometers';
     this.font = options.font || ['Roboto Medium'];
-    this.labelFormat = options.labelFormat || defaultLabelFormat;
     this.mainColor = options.mainColor || MAIN_COLOR;
     this.textColor = options.textColor || TEXT_COLOR;
     this.secondaryColor = options.secondaryColor || HALO_COLOR;
@@ -126,12 +117,41 @@ export default class CircleControl {
     this.container.appendChild(this.button);
   }
 
-  // Create the sources and layers for a polygon
+  measuringOn() {
+    this.isMeasuring = true;
+    this.map.getCanvas().style.cursor = 'crosshair';
+    this.button.classList.add('-active');
+    this.map.on('mousedown', this.mapMouseDownListener);
+    this.map.on('style.load', this.styleLoadListener);
+    this.map.fire('circle.on');
+  }
+
+  measuringOff() {
+    this.isMeasuring = false;
+    this.map.getCanvas().style.cursor = '';
+    this.button.classList.remove('-active');
+
+    // Remove layers, sources and event listeners for each circle
+    for (let i = 0; i <= this.indexOfCircles(); i += 1) {
+      this.map.removeLayer(LAYER_CIRCLE + i);
+      this.map.removeSource(SOURCE_CIRCLE + i);
+      this.map.removeLayer(LAYER_AREA + i);
+      this.map.removeSource(SOURCE_AREA + i);
+      this.map.removeLayer(LAYER_RADIUS + i);
+      this.map.removeSource(SOURCE_RADIUS + i);
+    }
+    this.circles = [];
+    this.map.off('mousedown', this.mapMouseDownListener);
+    this.map.off('style.load', this.styleLoadListener);
+    this.map.fire('circle.off');
+  }
+
+  // Create the sources and layers for a circle
   addSourcesAndLayers(circleNumber) {
-    // The polygon itself
+    // The circle itself
     this.map.addSource(SOURCE_CIRCLE + circleNumber, {
       type: 'geojson',
-      data: geoPolygon(this.circles[circleNumber].coordinates),
+      data: geoPolygon(),
     });
 
     this.map.addLayer({
@@ -145,7 +165,7 @@ export default class CircleControl {
       },
     });
 
-    // The area of the polygon
+    // The area of the circle in the middle
     this.map.addSource(SOURCE_AREA + circleNumber, {
       type: 'geojson',
       data: geoPoint(),
@@ -169,7 +189,7 @@ export default class CircleControl {
       },
     });
 
-    // The area of the polygon
+    // The radius of the circle at the top
     this.map.addSource(SOURCE_RADIUS + circleNumber, {
       type: 'geojson',
       data: geoPoint(),
@@ -205,15 +225,20 @@ export default class CircleControl {
       // will be under the new Tiles loaded.
       this.map.on('styledata', () => {
         if (this.map.getSource(SOURCE_CIRCLE + i)) {
-          this.map.getSource(SOURCE_CIRCLE + i)
-            .setData(geoPolygon([this.circles[i].coordinates]));
+          const currentCircle = this.circles[i];
+          const circleFeature = circle(currentCircle.center, currentCircle.radius);
+          this.map.getSource(SOURCE_CIRCLE + i).setData(circleFeature);
 
-          if (this.circles[i].coordinates.length > 3) {
-            // const centroidPoly = centroid(polygon([this.circles[i].coordinates]));
-            // const textArea = calculateCircleArea(this.circles[i].radius);
-            // centroidPoly.properties.area = textArea;
-            // this.map.getSource(SOURCE_AREA + i).setData(centroidPoly);
-          }
+          this.map.getSource(SOURCE_AREA + i)
+            .setData(point(currentCircle.center,
+              { area: calculateCircleArea(currentCircle.radius) }));
+
+          // Display the radius at the top of the circle
+          const distanceInMeters = Math.round(currentCircle.radius * 1000);
+          const pointCenter = point(currentCircle.center, { radius: `${distanceInMeters} m` });
+          const topCircle = transformTranslate(pointCenter, currentCircle.radius, 0);
+          this.map.getSource(SOURCE_RADIUS + i).setData(topCircle);
+
           // When our layers, we can unsubscribe for this event.
           this.map.off('styledata');
         }
@@ -221,41 +246,13 @@ export default class CircleControl {
     }
   }
 
-  measuringOn() {
-    this.isMeasuring = true;
-    this.map.getCanvas().style.cursor = 'crosshair';
-    this.button.classList.add('-active');
-    this.map.on('mousedown', this.mapMouseDownListener);
-    this.map.on('style.load', this.styleLoadListener);
-    this.map.fire('ruler.on');
-  }
-
-  measuringOff() {
-    this.isMeasuring = false;
-    this.map.getCanvas().style.cursor = '';
-    this.button.classList.remove('-active');
-
-    // Remove layers, sources and event listeners for each polygon
-    for (let i = 0; i <= this.indexOfCircles(); i += 1) {
-      this.map.removeLayer(LAYER_CIRCLE + i);
-      this.map.removeSource(SOURCE_CIRCLE + i);
-      if (this.map.getSource(SOURCE_AREA + i)) {
-        this.map.removeLayer(LAYER_AREA + i);
-        this.map.removeSource(SOURCE_AREA + i);
-      }
-    }
-    this.circles = [];
-    this.map.off('mousedown', this.mapMouseDownListener);
-    // this.map.off('mousemove', this.mapDragListener);
-    this.map.off('style.load', this.styleLoadListener);
-    this.map.fire('ruler.off');
-  }
-
+  // When the moiuse is down, we start listening the drag to draw the circle
   mapMouseDownListener(event) {
     this.initCircle();
     this.addSourcesAndLayers(this.indexOfCircles());
 
     this.map.dragPan.disable();
+
     this.circles[this.indexOfCircles()].center = [event.lngLat.lng, event.lngLat.lat];
     this.map.on('mousemove', this.mapDragListener);
 
@@ -265,6 +262,7 @@ export default class CircleControl {
     });
   }
 
+  // When there is drag: update the circle, the radius and the area.
   mapDragListener(event) {
     const { center } = this.circles[this.indexOfCircles()];
     if (center.length > 0) {
