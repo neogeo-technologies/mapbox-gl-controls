@@ -22,6 +22,15 @@ export default [
     },
     plugins,
   },
+  // {
+  //   input: 'src/circle/circle.js',
+  //   external: ['mapbox-gl'],
+  //   output: {
+  //     file: 'lib/circle.js',
+  //     format: 'esm',
+  //   },
+  //   plugins,
+  // },
   {
     input: 'src/compass/compass.js',
     output: {

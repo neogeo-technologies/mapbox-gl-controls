@@ -2,6 +2,7 @@ import mapboxgl from 'mapbox-gl';
 import StylesControl from '../lib/styles';
 import CompassControl from '../lib/compass';
 import RulerControl from '../lib/ruler';
+import CircleControl from '../src/circle/circle';
 import ZoomControl from '../lib/zoom';
 import LanguageControl from '../lib/language';
 import InspectControl from '../lib/inspect';
@@ -40,15 +41,22 @@ languages.addEventListener('change', () => {
 });
 
 /* Style */
-map.addControl(new StylesControl({
-  onChange: () => languages.value = '',
-}), 'top-left');
+map.addControl(
+  new StylesControl({
+    // eslint-disable-next-line no-return-assign
+    onChange: () => (languages.value = ''),
+  }),
+  'top-left',
+);
 
 /* Zoom */
 map.addControl(new ZoomControl(), 'bottom-right');
 
-/* Ruler */
+/* Area */
 map.addControl(new RulerControl(), 'bottom-right');
+
+/* Circle */
+map.addControl(new CircleControl(), 'bottom-right');
 
 /* Inspect */
 map.addControl(new InspectControl(), 'bottom-right');

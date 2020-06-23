@@ -1,0 +1,9 @@
+.mapboxgl-ctrl-circle {
+  button {
+    &.-active {
+      svg path {
+        stroke: #4264fb;
+      }
+    }
+  }
+}
