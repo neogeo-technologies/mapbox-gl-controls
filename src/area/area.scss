@@ -1,0 +1,10 @@
+.mapboxgl-ctrl-area {
+  color: red;
+  button {
+    &.-active {
+      svg {
+        fill: #4264fb;
+      }
+    }
+  }
+}
