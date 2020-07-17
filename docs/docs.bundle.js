@@ -1582,6 +1582,1166 @@
 	  return RulerControl;
 	}();
 
+	var destination_1 = createCommonjsModule(function (module, exports) {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	// http://en.wikipedia.org/wiki/Haversine_formula
+	// http://www.movable-type.co.uk/scripts/latlong.html
+
+
+	/**
+	 * Takes a {@link Point} and calculates the location of a destination point given a distance in
+	 * degrees, radians, miles, or kilometers; and bearing in degrees.
+	 * This uses the [Haversine formula](http://en.wikipedia.org/wiki/Haversine_formula) to account for global curvature.
+	 *
+	 * @name destination
+	 * @param {Coord} origin starting point
+	 * @param {number} distance distance from the origin point
+	 * @param {number} bearing ranging from -180 to 180
+	 * @param {Object} [options={}] Optional parameters
+	 * @param {string} [options.units='kilometers'] miles, kilometers, degrees, or radians
+	 * @param {Object} [options.properties={}] Translate properties to Point
+	 * @returns {Feature<Point>} destination point
+	 * @example
+	 * var point = turf.point([-75.343, 39.984]);
+	 * var distance = 50;
+	 * var bearing = 90;
+	 * var options = {units: 'miles'};
+	 *
+	 * var destination = turf.destination(point, distance, bearing, options);
+	 *
+	 * //addToMap
+	 * var addToMap = [point, destination]
+	 * destination.properties['marker-color'] = '#f00';
+	 * point.properties['marker-color'] = '#0f0';
+	 */
+	function destination(origin, distance, bearing, options) {
+	    if (options === void 0) { options = {}; }
+	    // Handle input
+	    var coordinates1 = invariant.getCoord(origin);
+	    var longitude1 = helpers.degreesToRadians(coordinates1[0]);
+	    var latitude1 = helpers.degreesToRadians(coordinates1[1]);
+	    var bearingRad = helpers.degreesToRadians(bearing);
+	    var radians = helpers.lengthToRadians(distance, options.units);
+	    // Main
+	    var latitude2 = Math.asin(Math.sin(latitude1) * Math.cos(radians) +
+	        Math.cos(latitude1) * Math.sin(radians) * Math.cos(bearingRad));
+	    var longitude2 = longitude1 + Math.atan2(Math.sin(bearingRad) * Math.sin(radians) * Math.cos(latitude1), Math.cos(radians) - Math.sin(latitude1) * Math.sin(latitude2));
+	    var lng = helpers.radiansToDegrees(longitude2);
+	    var lat = helpers.radiansToDegrees(latitude2);
+	    return helpers.point([lng, lat], options.properties);
+	}
+	exports.default = destination;
+	});
+
+	unwrapExports(destination_1);
+
+	var circle_1 = createCommonjsModule(function (module, exports) {
+	Object.defineProperty(exports, "__esModule", { value: true });
+
+
+	/**
+	 * Takes a {@link Point} and calculates the circle polygon given a radius in degrees, radians, miles, or kilometers; and steps for precision.
+	 *
+	 * @name circle
+	 * @param {Feature<Point>|number[]} center center point
+	 * @param {number} radius radius of the circle
+	 * @param {Object} [options={}] Optional parameters
+	 * @param {number} [options.steps=64] number of steps
+	 * @param {string} [options.units='kilometers'] miles, kilometers, degrees, or radians
+	 * @param {Object} [options.properties={}] properties
+	 * @returns {Feature<Polygon>} circle polygon
+	 * @example
+	 * var center = [-75.343, 39.984];
+	 * var radius = 5;
+	 * var options = {steps: 10, units: 'kilometers', properties: {foo: 'bar'}};
+	 * var circle = turf.circle(center, radius, options);
+	 *
+	 * //addToMap
+	 * var addToMap = [turf.point(center), circle]
+	 */
+	function circle(center, radius, options) {
+	    if (options === void 0) { options = {}; }
+	    // default params
+	    var steps = options.steps || 64;
+	    var properties = options.properties ? options.properties : (!Array.isArray(center) && center.type === 'Feature' && center.properties) ? center.properties : {};
+	    // main
+	    var coordinates = [];
+	    for (var i = 0; i < steps; i++) {
+	        coordinates.push(destination_1.default(center, radius, i * -360 / steps, options).geometry.coordinates);
+	    }
+	    coordinates.push(coordinates[0]);
+	    return helpers.polygon([coordinates], properties);
+	}
+	exports.default = circle;
+	});
+
+	var circle = unwrapExports(circle_1);
+
+	/**
+	 * Earth Radius used with the Harvesine formula and approximates using a spherical (non-ellipsoid) Earth.
+	 */
+
+	/**
+	 * isObject
+	 *
+	 * @param {*} input variable to validate
+	 * @returns {boolean} true/false
+	 * @example
+	 * turf.isObject({elevation: 10})
+	 * //=true
+	 * turf.isObject('foo')
+	 * //=false
+	 */
+	function isObject(input) {
+	    return (!!input) && (input.constructor === Object);
+	}
+
+	/**
+	 * Callback for coordEach
+	 *
+	 * @callback coordEachCallback
+	 * @param {Array<number>} currentCoord The current coordinate being processed.
+	 * @param {number} coordIndex The current index of the coordinate being processed.
+	 * @param {number} featureIndex The current index of the Feature being processed.
+	 * @param {number} multiFeatureIndex The current index of the Multi-Feature being processed.
+	 * @param {number} geometryIndex The current index of the Geometry being processed.
+	 */
+
+	/**
+	 * Iterate over coordinates in any GeoJSON object, similar to Array.forEach()
+	 *
+	 * @name coordEach
+	 * @param {FeatureCollection|Feature|Geometry} geojson any GeoJSON object
+	 * @param {Function} callback a method that takes (currentCoord, coordIndex, featureIndex, multiFeatureIndex)
+	 * @param {boolean} [excludeWrapCoord=false] whether or not to include the final coordinate of LinearRings that wraps the ring in its iteration.
+	 * @returns {void}
+	 * @example
+	 * var features = turf.featureCollection([
+	 *   turf.point([26, 37], {"foo": "bar"}),
+	 *   turf.point([36, 53], {"hello": "world"})
+	 * ]);
+	 *
+	 * turf.coordEach(features, function (currentCoord, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) {
+	 *   //=currentCoord
+	 *   //=coordIndex
+	 *   //=featureIndex
+	 *   //=multiFeatureIndex
+	 *   //=geometryIndex
+	 * });
+	 */
+	function coordEach(geojson, callback, excludeWrapCoord) {
+	    // Handles null Geometry -- Skips this GeoJSON
+	    if (geojson === null) return;
+	    var j, k, l, geometry, stopG, coords,
+	        geometryMaybeCollection,
+	        wrapShrink = 0,
+	        coordIndex = 0,
+	        isGeometryCollection,
+	        type = geojson.type,
+	        isFeatureCollection = type === 'FeatureCollection',
+	        isFeature = type === 'Feature',
+	        stop = isFeatureCollection ? geojson.features.length : 1;
+
+	    // This logic may look a little weird. The reason why it is that way
+	    // is because it's trying to be fast. GeoJSON supports multiple kinds
+	    // of objects at its root: FeatureCollection, Features, Geometries.
+	    // This function has the responsibility of handling all of them, and that
+	    // means that some of the `for` loops you see below actually just don't apply
+	    // to certain inputs. For instance, if you give this just a
+	    // Point geometry, then both loops are short-circuited and all we do
+	    // is gradually rename the input until it's called 'geometry'.
+	    //
+	    // This also aims to allocate as few resources as possible: just a
+	    // few numbers and booleans, rather than any temporary arrays as would
+	    // be required with the normalization approach.
+	    for (var featureIndex = 0; featureIndex < stop; featureIndex++) {
+	        geometryMaybeCollection = (isFeatureCollection ? geojson.features[featureIndex].geometry :
+	            (isFeature ? geojson.geometry : geojson));
+	        isGeometryCollection = (geometryMaybeCollection) ? geometryMaybeCollection.type === 'GeometryCollection' : false;
+	        stopG = isGeometryCollection ? geometryMaybeCollection.geometries.length : 1;
+
+	        for (var geomIndex = 0; geomIndex < stopG; geomIndex++) {
+	            var multiFeatureIndex = 0;
+	            var geometryIndex = 0;
+	            geometry = isGeometryCollection ?
+	                geometryMaybeCollection.geometries[geomIndex] : geometryMaybeCollection;
+
+	            // Handles null Geometry -- Skips this geometry
+	            if (geometry === null) continue;
+	            coords = geometry.coordinates;
+	            var geomType = geometry.type;
+
+	            wrapShrink = (excludeWrapCoord && (geomType === 'Polygon' || geomType === 'MultiPolygon')) ? 1 : 0;
+
+	            switch (geomType) {
+	            case null:
+	                break;
+	            case 'Point':
+	                if (callback(coords, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) === false) return false;
+	                coordIndex++;
+	                multiFeatureIndex++;
+	                break;
+	            case 'LineString':
+	            case 'MultiPoint':
+	                for (j = 0; j < coords.length; j++) {
+	                    if (callback(coords[j], coordIndex, featureIndex, multiFeatureIndex, geometryIndex) === false) return false;
+	                    coordIndex++;
+	                    if (geomType === 'MultiPoint') multiFeatureIndex++;
+	                }
+	                if (geomType === 'LineString') multiFeatureIndex++;
+	                break;
+	            case 'Polygon':
+	            case 'MultiLineString':
+	                for (j = 0; j < coords.length; j++) {
+	                    for (k = 0; k < coords[j].length - wrapShrink; k++) {
+	                        if (callback(coords[j][k], coordIndex, featureIndex, multiFeatureIndex, geometryIndex) === false) return false;
+	                        coordIndex++;
+	                    }
+	                    if (geomType === 'MultiLineString') multiFeatureIndex++;
+	                    if (geomType === 'Polygon') geometryIndex++;
+	                }
+	                if (geomType === 'Polygon') multiFeatureIndex++;
+	                break;
+	            case 'MultiPolygon':
+	                for (j = 0; j < coords.length; j++) {
+	                    if (geomType === 'MultiPolygon') geometryIndex = 0;
+	                    for (k = 0; k < coords[j].length; k++) {
+	                        for (l = 0; l < coords[j][k].length - wrapShrink; l++) {
+	                            if (callback(coords[j][k][l], coordIndex, featureIndex, multiFeatureIndex, geometryIndex) === false) return false;
+	                            coordIndex++;
+	                        }
+	                        geometryIndex++;
+	                    }
+	                    multiFeatureIndex++;
+	                }
+	                break;
+	            case 'GeometryCollection':
+	                for (j = 0; j < geometry.geometries.length; j++)
+	                    if (coordEach(geometry.geometries[j], callback, excludeWrapCoord) === false) return false;
+	                break;
+	            default:
+	                throw new Error('Unknown Geometry Type');
+	            }
+	        }
+	    }
+	}
+
+	/**
+	 * Unwrap coordinates from a Feature, Geometry Object or an Array
+	 *
+	 * @name getCoords
+	 * @param {Array<any>|Geometry|Feature} coords Feature, Geometry Object or an Array
+	 * @returns {Array<any>} coordinates
+	 * @example
+	 * var poly = turf.polygon([[[119.32, -8.7], [119.55, -8.69], [119.51, -8.54], [119.32, -8.7]]]);
+	 *
+	 * var coords = turf.getCoords(poly);
+	 * //= [[[119.32, -8.7], [119.55, -8.69], [119.51, -8.54], [119.32, -8.7]]]
+	 */
+	function getCoords(coords) {
+	    if (!coords) throw new Error('coords is required');
+
+	    // Feature
+	    if (coords.type === 'Feature' && coords.geometry !== null) return coords.geometry.coordinates;
+
+	    // Geometry
+	    if (coords.coordinates) return coords.coordinates;
+
+	    // Array of numbers
+	    if (Array.isArray(coords)) return coords;
+
+	    throw new Error('coords must be GeoJSON Feature, Geometry Object or an Array');
+	}
+
+	/**
+	 * Returns a cloned copy of the passed GeoJSON Object, including possible 'Foreign Members'.
+	 * ~3-5x faster than the common JSON.parse + JSON.stringify combo method.
+	 *
+	 * @name clone
+	 * @param {GeoJSON} geojson GeoJSON Object
+	 * @returns {GeoJSON} cloned GeoJSON Object
+	 * @example
+	 * var line = turf.lineString([[-74, 40], [-78, 42], [-82, 35]], {color: 'red'});
+	 *
+	 * var lineCloned = turf.clone(line);
+	 */
+	function clone(geojson) {
+	    if (!geojson) throw new Error('geojson is required');
+
+	    switch (geojson.type) {
+	    case 'Feature':
+	        return cloneFeature(geojson);
+	    case 'FeatureCollection':
+	        return cloneFeatureCollection(geojson);
+	    case 'Point':
+	    case 'LineString':
+	    case 'Polygon':
+	    case 'MultiPoint':
+	    case 'MultiLineString':
+	    case 'MultiPolygon':
+	    case 'GeometryCollection':
+	        return cloneGeometry(geojson);
+	    default:
+	        throw new Error('unknown GeoJSON type');
+	    }
+	}
+
+	/**
+	 * Clone Feature
+	 *
+	 * @private
+	 * @param {Feature<any>} geojson GeoJSON Feature
+	 * @returns {Feature<any>} cloned Feature
+	 */
+	function cloneFeature(geojson) {
+	    var cloned = {type: 'Feature'};
+	    // Preserve Foreign Members
+	    Object.keys(geojson).forEach(function (key) {
+	        switch (key) {
+	        case 'type':
+	        case 'properties':
+	        case 'geometry':
+	            return;
+	        default:
+	            cloned[key] = geojson[key];
+	        }
+	    });
+	    // Add properties & geometry last
+	    cloned.properties = cloneProperties(geojson.properties);
+	    cloned.geometry = cloneGeometry(geojson.geometry);
+	    return cloned;
+	}
+
+	/**
+	 * Clone Properties
+	 *
+	 * @private
+	 * @param {Object} properties GeoJSON Properties
+	 * @returns {Object} cloned Properties
+	 */
+	function cloneProperties(properties) {
+	    var cloned = {};
+	    if (!properties) return cloned;
+	    Object.keys(properties).forEach(function (key) {
+	        var value = properties[key];
+	        if (typeof value === 'object') {
+	            if (value === null) {
+	                // handle null
+	                cloned[key] = null;
+	            } else if (value.length) {
+	                // handle Array
+	                cloned[key] = value.map(function (item) {
+	                    return item;
+	                });
+	            } else {
+	                // handle generic Object
+	                cloned[key] = cloneProperties(value);
+	            }
+	        } else cloned[key] = value;
+	    });
+	    return cloned;
+	}
+
+	/**
+	 * Clone Feature Collection
+	 *
+	 * @private
+	 * @param {FeatureCollection<any>} geojson GeoJSON Feature Collection
+	 * @returns {FeatureCollection<any>} cloned Feature Collection
+	 */
+	function cloneFeatureCollection(geojson) {
+	    var cloned = {type: 'FeatureCollection'};
+
+	    // Preserve Foreign Members
+	    Object.keys(geojson).forEach(function (key) {
+	        switch (key) {
+	        case 'type':
+	        case 'features':
+	            return;
+	        default:
+	            cloned[key] = geojson[key];
+	        }
+	    });
+	    // Add features
+	    cloned.features = geojson.features.map(function (feature) {
+	        return cloneFeature(feature);
+	    });
+	    return cloned;
+	}
+
+	/**
+	 * Clone Geometry
+	 *
+	 * @private
+	 * @param {Geometry<any>} geometry GeoJSON Geometry
+	 * @returns {Geometry<any>} cloned Geometry
+	 */
+	function cloneGeometry(geometry) {
+	    var geom = {type: geometry.type};
+	    if (geometry.bbox) geom.bbox = geometry.bbox;
+
+	    if (geometry.type === 'GeometryCollection') {
+	        geom.geometries = geometry.geometries.map(function (geom) {
+	            return cloneGeometry(geom);
+	        });
+	        return geom;
+	    }
+	    geom.coordinates = deepSlice(geometry.coordinates);
+	    return geom;
+	}
+
+	/**
+	 * Deep Slice coordinates
+	 *
+	 * @private
+	 * @param {Coordinates} coords Coordinates
+	 * @returns {Coordinates} all coordinates sliced
+	 */
+	function deepSlice(coords) {
+	    if (typeof coords[0] !== 'object') { return coords.slice(); }
+	    return coords.map(function (coord) {
+	        return deepSlice(coord);
+	    });
+	}
+
+	/**
+	 * Earth Radius used with the Harvesine formula and approximates using a spherical (non-ellipsoid) Earth.
+	 */
+	var earthRadius = 6371008.8;
+
+	/**
+	 * Unit of measurement factors using a spherical (non-ellipsoid) earth radius.
+	 */
+	var factors = {
+	    meters: earthRadius,
+	    metres: earthRadius,
+	    millimeters: earthRadius * 1000,
+	    millimetres: earthRadius * 1000,
+	    centimeters: earthRadius * 100,
+	    centimetres: earthRadius * 100,
+	    kilometers: earthRadius / 1000,
+	    kilometres: earthRadius / 1000,
+	    miles: earthRadius / 1609.344,
+	    nauticalmiles: earthRadius / 1852,
+	    inches: earthRadius * 39.370,
+	    yards: earthRadius / 1.0936,
+	    feet: earthRadius * 3.28084,
+	    radians: 1,
+	    degrees: earthRadius / 111325,
+	};
+
+	/**
+	 * Wraps a GeoJSON {@link Geometry} in a GeoJSON {@link Feature}.
+	 *
+	 * @name feature
+	 * @param {Geometry} geometry input geometry
+	 * @param {Object} [properties={}] an Object of key-value pairs to add as properties
+	 * @param {Object} [options={}] Optional Parameters
+	 * @param {Array<number>} [options.bbox] Bounding Box Array [west, south, east, north] associated with the Feature
+	 * @param {string|number} [options.id] Identifier associated with the Feature
+	 * @returns {Feature} a GeoJSON Feature
+	 * @example
+	 * var geometry = {
+	 *   "type": "Point",
+	 *   "coordinates": [110, 50]
+	 * };
+	 *
+	 * var feature = turf.feature(geometry);
+	 *
+	 * //=feature
+	 */
+	function feature(geometry, properties, options) {
+	    // Optional Parameters
+	    options = options || {};
+	    if (!isObject$1(options)) throw new Error('options is invalid');
+	    var bbox = options.bbox;
+	    var id = options.id;
+
+	    // Validation
+	    if (geometry === undefined) throw new Error('geometry is required');
+	    if (properties && properties.constructor !== Object) throw new Error('properties must be an Object');
+	    if (bbox) validateBBox(bbox);
+	    if (id) validateId(id);
+
+	    // Main
+	    var feat = {type: 'Feature'};
+	    if (id) feat.id = id;
+	    if (bbox) feat.bbox = bbox;
+	    feat.properties = properties || {};
+	    feat.geometry = geometry;
+	    return feat;
+	}
+
+	/**
+	 * Creates a {@link Point} {@link Feature} from a Position.
+	 *
+	 * @name point
+	 * @param {Array<number>} coordinates longitude, latitude position (each in decimal degrees)
+	 * @param {Object} [properties={}] an Object of key-value pairs to add as properties
+	 * @param {Object} [options={}] Optional Parameters
+	 * @param {Array<number>} [options.bbox] Bounding Box Array [west, south, east, north] associated with the Feature
+	 * @param {string|number} [options.id] Identifier associated with the Feature
+	 * @returns {Feature<Point>} a Point feature
+	 * @example
+	 * var point = turf.point([-75.343, 39.984]);
+	 *
+	 * //=point
+	 */
+	function point(coordinates, properties, options) {
+	    if (!coordinates) throw new Error('coordinates is required');
+	    if (!Array.isArray(coordinates)) throw new Error('coordinates must be an Array');
+	    if (coordinates.length < 2) throw new Error('coordinates must be at least 2 numbers long');
+	    if (!isNumber(coordinates[0]) || !isNumber(coordinates[1])) throw new Error('coordinates must contain numbers');
+
+	    return feature({
+	        type: 'Point',
+	        coordinates: coordinates
+	    }, properties, options);
+	}
+
+	/**
+	 * Convert a distance measurement (assuming a spherical Earth) from radians to a more friendly unit.
+	 * Valid units: miles, nauticalmiles, inches, yards, meters, metres, kilometers, centimeters, feet
+	 *
+	 * @name radiansToLength
+	 * @param {number} radians in radians across the sphere
+	 * @param {string} [units='kilometers'] can be degrees, radians, miles, or kilometers inches, yards, metres, meters, kilometres, kilometers.
+	 * @returns {number} distance
+	 */
+	function radiansToLength(radians, units) {
+	    if (radians === undefined || radians === null) throw new Error('radians is required');
+
+	    if (units && typeof units !== 'string') throw new Error('units must be a string');
+	    var factor = factors[units || 'kilometers'];
+	    if (!factor) throw new Error(units + ' units is invalid');
+	    return radians * factor;
+	}
+
+	/**
+	 * Convert a distance measurement (assuming a spherical Earth) from a real-world unit into radians
+	 * Valid units: miles, nauticalmiles, inches, yards, meters, metres, kilometers, centimeters, feet
+	 *
+	 * @name lengthToRadians
+	 * @param {number} distance in real units
+	 * @param {string} [units='kilometers'] can be degrees, radians, miles, or kilometers inches, yards, metres, meters, kilometres, kilometers.
+	 * @returns {number} radians
+	 */
+	function lengthToRadians(distance, units) {
+	    if (distance === undefined || distance === null) throw new Error('distance is required');
+
+	    if (units && typeof units !== 'string') throw new Error('units must be a string');
+	    var factor = factors[units || 'kilometers'];
+	    if (!factor) throw new Error(units + ' units is invalid');
+	    return distance / factor;
+	}
+
+	/**
+	 * Converts an angle in degrees to radians
+	 *
+	 * @name degreesToRadians
+	 * @param {number} degrees angle between 0 and 360 degrees
+	 * @returns {number} angle in radians
+	 */
+	function degreesToRadians(degrees) {
+	    if (degrees === null || degrees === undefined) throw new Error('degrees is required');
+
+	    var radians = degrees % 360;
+	    return radians * Math.PI / 180;
+	}
+
+	/**
+	 * Converts a length to the requested unit.
+	 * Valid units: miles, nauticalmiles, inches, yards, meters, metres, kilometers, centimeters, feet
+	 *
+	 * @param {number} length to be converted
+	 * @param {string} originalUnit of the length
+	 * @param {string} [finalUnit='kilometers'] returned unit
+	 * @returns {number} the converted length
+	 */
+	function convertLength(length, originalUnit, finalUnit) {
+	    if (length === null || length === undefined) throw new Error('length is required');
+	    if (!(length >= 0)) throw new Error('length must be a positive number');
+
+	    return radiansToLength(lengthToRadians(length, originalUnit), finalUnit || 'kilometers');
+	}
+
+	/**
+	 * isNumber
+	 *
+	 * @param {*} num Number to validate
+	 * @returns {boolean} true/false
+	 * @example
+	 * turf.isNumber(123)
+	 * //=true
+	 * turf.isNumber('foo')
+	 * //=false
+	 */
+	function isNumber(num) {
+	    return !isNaN(num) && num !== null && !Array.isArray(num);
+	}
+
+	/**
+	 * isObject
+	 *
+	 * @param {*} input variable to validate
+	 * @returns {boolean} true/false
+	 * @example
+	 * turf.isObject({elevation: 10})
+	 * //=true
+	 * turf.isObject('foo')
+	 * //=false
+	 */
+	function isObject$1(input) {
+	    return (!!input) && (input.constructor === Object);
+	}
+
+	/**
+	 * Validate BBox
+	 *
+	 * @private
+	 * @param {Array<number>} bbox BBox to validate
+	 * @returns {void}
+	 * @throws Error if BBox is not valid
+	 * @example
+	 * validateBBox([-180, -40, 110, 50])
+	 * //=OK
+	 * validateBBox([-180, -40])
+	 * //=Error
+	 * validateBBox('Foo')
+	 * //=Error
+	 * validateBBox(5)
+	 * //=Error
+	 * validateBBox(null)
+	 * //=Error
+	 * validateBBox(undefined)
+	 * //=Error
+	 */
+	function validateBBox(bbox) {
+	    if (!bbox) throw new Error('bbox is required');
+	    if (!Array.isArray(bbox)) throw new Error('bbox must be an Array');
+	    if (bbox.length !== 4 && bbox.length !== 6) throw new Error('bbox must be an Array of 4 or 6 numbers');
+	    bbox.forEach(function (num) {
+	        if (!isNumber(num)) throw new Error('bbox must only contain numbers');
+	    });
+	}
+
+	/**
+	 * Validate Id
+	 *
+	 * @private
+	 * @param {string|number} id Id to validate
+	 * @returns {void}
+	 * @throws Error if Id is not valid
+	 * @example
+	 * validateId([-180, -40, 110, 50])
+	 * //=Error
+	 * validateId([-180, -40])
+	 * //=Error
+	 * validateId('Foo')
+	 * //=OK
+	 * validateId(5)
+	 * //=OK
+	 * validateId(null)
+	 * //=Error
+	 * validateId(undefined)
+	 * //=Error
+	 */
+	function validateId(id) {
+	    if (!id) throw new Error('id is required');
+	    if (['string', 'number'].indexOf(typeof id) === -1) throw new Error('id must be a number or a string');
+	}
+
+	/**
+	 * Unwrap a coordinate from a Point Feature, Geometry or a single coordinate.
+	 *
+	 * @name getCoord
+	 * @param {Array<number>|Geometry<Point>|Feature<Point>} coord GeoJSON Point or an Array of numbers
+	 * @returns {Array<number>} coordinates
+	 * @example
+	 * var pt = turf.point([10, 10]);
+	 *
+	 * var coord = turf.getCoord(pt);
+	 * //= [10, 10]
+	 */
+	function getCoord(coord) {
+	    if (!coord) throw new Error('coord is required');
+	    if (coord.type === 'Feature' && coord.geometry !== null && coord.geometry.type === 'Point') return coord.geometry.coordinates;
+	    if (coord.type === 'Point') return coord.coordinates;
+	    if (Array.isArray(coord) && coord.length >= 2 && coord[0].length === undefined && coord[1].length === undefined) return coord;
+
+	    throw new Error('coord must be GeoJSON Point or an Array of numbers');
+	}
+
+	// https://en.wikipedia.org/wiki/Rhumb_line
+	/**
+	 * Returns the destination {@link Point} having travelled the given distance along a Rhumb line from the
+	 * origin Point with the (varant) given bearing.
+	 *
+	 * @name rhumbDestination
+	 * @param {Coord} origin starting point
+	 * @param {number} distance distance from the starting point
+	 * @param {number} bearing varant bearing angle ranging from -180 to 180 degrees from north
+	 * @param {Object} [options={}] Optional parameters
+	 * @param {string} [options.units='kilometers'] can be degrees, radians, miles, or kilometers
+	 * @param {Object} [options.properties={}] translate properties to destination point
+	 * @returns {Feature<Point>} Destination point.
+	 * @example
+	 * var pt = turf.point([-75.343, 39.984], {"marker-color": "F00"});
+	 * var distance = 50;
+	 * var bearing = 90;
+	 * var options = {units: 'miles'};
+	 *
+	 * var destination = turf.rhumbDestination(pt, distance, bearing, options);
+	 *
+	 * //addToMap
+	 * var addToMap = [pt, destination]
+	 * destination.properties['marker-color'] = '#00F';
+	 */
+	function rhumbDestination(origin, distance, bearing, options) {
+	    // Optional parameters
+	    options = options || {};
+	    if (!isObject$1(options)) throw new Error('options is invalid');
+	    var units = options.units;
+	    var properties = options.properties;
+
+	    // validation
+	    if (!origin) throw new Error('origin is required');
+	    if (distance === undefined || distance === null) throw new Error('distance is required');
+	    if (bearing === undefined || bearing === null) throw new Error('bearing is required');
+	    if (!(distance >= 0)) throw new Error('distance must be greater than 0');
+
+	    var distanceInMeters = convertLength(distance, units, 'meters');
+	    var coords = getCoord(origin);
+	    var destination = calculateRhumbDestination(coords, distanceInMeters, bearing);
+
+	    // compensate the crossing of the 180th meridian (https://macwright.org/2016/09/26/the-180th-meridian.html)
+	    // solution from https://github.com/mapbox/mapbox-gl-js/issues/3250#issuecomment-294887678
+	    destination[0] += (destination[0] - coords[0] > 180) ? -360 : (coords[0] - destination[0] > 180) ? 360 : 0;
+	    return point(destination, properties);
+	}
+
+	/**
+	 * Returns the destination point having travelled along a rhumb line from origin point the given
+	 * distance on the  given bearing.
+	 * Adapted from Geodesy: http://www.movable-type.co.uk/scripts/latlong.html#rhumblines
+	 *
+	 * @private
+	 * @param   {Array<number>} origin - point
+	 * @param   {number} distance - Distance travelled, in same units as earth radius (default: metres).
+	 * @param   {number} bearing - Bearing in degrees from north.
+	 * @param   {number} [radius=6371e3] - (Mean) radius of earth (defaults to radius in metres).
+	 * @returns {Array<number>} Destination point.
+	 */
+	function calculateRhumbDestination(origin, distance, bearing, radius) {
+	    // φ => phi
+	    // λ => lambda
+	    // ψ => psi
+	    // Δ => Delta
+	    // δ => delta
+	    // θ => theta
+
+	    radius = (radius === undefined) ? earthRadius : Number(radius);
+
+	    var delta = distance / radius; // angular distance in radians
+	    var lambda1 = origin[0] * Math.PI / 180; // to radians, but without normalize to 𝜋
+	    var phi1 = degreesToRadians(origin[1]);
+	    var theta = degreesToRadians(bearing);
+
+	    var DeltaPhi = delta * Math.cos(theta);
+	    var phi2 = phi1 + DeltaPhi;
+
+	    // check for some daft bugger going past the pole, normalise latitude if so
+	    if (Math.abs(phi2) > Math.PI / 2) phi2 = phi2 > 0 ? Math.PI - phi2 : -Math.PI - phi2;
+
+	    var DeltaPsi = Math.log(Math.tan(phi2 / 2 + Math.PI / 4) / Math.tan(phi1 / 2 + Math.PI / 4));
+	    var q = Math.abs(DeltaPsi) > 10e-12 ? DeltaPhi / DeltaPsi : Math.cos(phi1); // E-W course becomes ill-conditioned with 0/0
+
+	    var DeltaLambda = delta * Math.sin(theta) / q;
+	    var lambda2 = lambda1 + DeltaLambda;
+
+	    return [((lambda2 * 180 / Math.PI) + 540) % 360 - 180, phi2 * 180 / Math.PI]; // normalise to −180..+180°
+	}
+
+	/**
+	 * Moves any geojson Feature or Geometry of a specified distance along a Rhumb Line
+	 * on the provided direction angle.
+	 *
+	 * @name transformTranslate
+	 * @param {GeoJSON} geojson object to be translated
+	 * @param {number} distance length of the motion; negative values determine motion in opposite direction
+	 * @param {number} direction of the motion; angle from North in decimal degrees, positive clockwise
+	 * @param {Object} [options={}] Optional parameters
+	 * @param {string} [options.units='kilometers'] in which `distance` will be express; miles, kilometers, degrees, or radians
+	 * @param {number} [options.zTranslation=0] length of the vertical motion, same unit of distance
+	 * @param {boolean} [options.mutate=false] allows GeoJSON input to be mutated (significant performance increase if true)
+	 * @returns {GeoJSON} the translated GeoJSON object
+	 * @example
+	 * var poly = turf.polygon([[[0,29],[3.5,29],[2.5,32],[0,29]]]);
+	 * var translatedPoly = turf.transformTranslate(poly, 100, 35);
+	 *
+	 * //addToMap
+	 * var addToMap = [poly, translatedPoly];
+	 * translatedPoly.properties = {stroke: '#F00', 'stroke-width': 4};
+	 */
+	function transformTranslate(geojson, distance, direction, options) {
+	    // Optional parameters
+	    options = options || {};
+	    if (!isObject(options)) throw new Error('options is invalid');
+	    var units = options.units;
+	    var zTranslation = options.zTranslation;
+	    var mutate = options.mutate;
+
+	    // Input validation
+	    if (!geojson) throw new Error('geojson is required');
+	    if (distance === undefined || distance === null || isNaN(distance)) throw new Error('distance is required');
+	    if (zTranslation && typeof zTranslation !== 'number' && isNaN(zTranslation)) throw new Error('zTranslation is not a number');
+
+	    // Shortcut no-motion
+	    zTranslation = (zTranslation !== undefined) ? zTranslation : 0;
+	    if (distance === 0 && zTranslation === 0) return geojson;
+
+	    if (direction === undefined || direction === null || isNaN(direction)) throw new Error('direction is required');
+
+	    // Invert with negative distances
+	    if (distance < 0) {
+	        distance = -distance;
+	        direction = -direction;
+	    }
+
+	    // Clone geojson to avoid side effects
+	    if (mutate === false || mutate === undefined) geojson = clone(geojson);
+
+	    // Translate each coordinate
+	    coordEach(geojson, function (pointCoords) {
+	        var newCoords = getCoords(rhumbDestination(pointCoords, distance, direction, {units: units}));
+	        pointCoords[0] = newCoords[0];
+	        pointCoords[1] = newCoords[1];
+	        if (zTranslation && pointCoords.length === 3) pointCoords[2] += zTranslation;
+	    });
+	    return geojson;
+	}
+
+	function iconRuler$1() {
+	  return (new DOMParser().parseFromString("\n<svg version=\"1.0\" xmlns=\"http://www.w3.org/2000/svg\"\n  viewBox=\"0 0 1261.000000 1280.000000\"\n preserveAspectRatio=\"xMidYMid meet\">\n<g transform=\"translate(0.000000,1280.000000) scale(0.100000,-0.100000)\"\nfill=\"#000000\" stroke=\"none\">\n<path d=\"M6405 12786 c-37 -9 -45 -14 -32 -19 10 -4 29 -7 41 -7 12 0 31 -7\n42 -15 10 -8 28 -15 39 -15 11 0 34 -7 50 -16 20 -11 61 -16 128 -17 99 -2 99\n-2 123 28 13 17 24 33 24 36 0 3 -38 13 -84 22 -96 19 -256 20 -331 3z\"/>\n<path d=\"M5895 12720 c-4 -6 7 -10 25 -10 18 0 29 4 25 10 -3 6 -15 10 -25 10\n-10 0 -22 -4 -25 -10z\"/>\n<path d=\"M7150 12720 c0 -5 9 -10 21 -10 11 0 17 5 14 10 -3 6 -13 10 -21 10\n-8 0 -14 -4 -14 -10z\"/>\n<path d=\"M5418 12713 c-29 -4 -37 -18 -16 -25 23 -8 -3 -26 -49 -33 -52 -8\n-174 -43 -185 -54 -4 -3 66 5 157 18 151 23 163 26 154 43 -6 12 -6 25 1 38\n11 21 4 23 -62 13z\"/>\n<path d=\"M6110 12682 c0 -33 -35 -42 -157 -42 -96 0 -105 -2 -110 -20 -5 -18\n-14 -20 -112 -20 -59 0 -111 -4 -117 -9 -12 -12 -165 -41 -213 -41 -20 1 -47\n7 -61 15 -41 23 -86 17 -191 -25 -83 -33 -184 -64 -283 -85 -11 -2 -25 0 -31\n5 -17 14 -121 -17 -357 -107 -188 -71 -209 -77 -288 -79 -67 -2 -101 -9 -163\n-33 -43 -17 -86 -31 -96 -31 -9 0 -63 -31 -118 -70 -103 -71 -119 -78 -125\n-59 -8 25 -264 -126 -471 -279 -80 -59 -86 -66 -70 -78 17 -13 15 -16 -19 -46\n-184 -165 -203 -177 -239 -158 -37 20 -17 80 53 156 22 24 38 44 34 44 -4 0\n-29 -11 -56 -25 -27 -14 -56 -25 -65 -25 -25 0 -17 33 17 75 l33 39 -33 -20\nc-19 -10 -57 -41 -86 -69 -42 -40 -55 -58 -60 -90 -5 -34 -89 -274 -98 -280\n-2 -1 -57 -46 -123 -101 -192 -158 -350 -299 -498 -443 -75 -74 -140 -132\n-143 -128 -11 11 8 48 67 127 75 102 231 260 256 260 21 0 87 65 153 150 23\n30 54 60 69 66 32 13 151 139 151 159 0 21 -5 19 -42 -13 -18 -16 -55 -37 -81\n-47 -39 -15 -52 -26 -69 -59 -18 -37 -362 -385 -380 -386 -5 0 -8 4 -8 9 0 9\n55 103 88 150 16 24 16 24 -6 12 -12 -6 -49 -53 -83 -104 -68 -101 -150 -206\n-199 -252 -36 -33 -84 -104 -77 -112 3 -2 19 2 35 11 70 36 142 30 142 -13 0\n-16 -159 -179 -206 -211 -27 -19 -154 -286 -154 -324 0 -24 -17 -46 -95 -119\n-101 -95 -183 -194 -282 -342 -88 -131 -96 -150 -78 -169 21 -21 20 -26 -31\n-102 -57 -86 -52 -81 -67 -60 -11 15 -21 2 -80 -112 -37 -71 -67 -132 -67\n-136 0 -3 7 -6 15 -6 25 0 18 -29 -49 -196 -56 -138 -81 -218 -110 -345 -5\n-22 -13 -27 -52 -33 -28 -3 -52 -2 -60 5 -15 13 -17 80 -3 203 5 49 8 91 6 93\n-7 6 -93 -220 -151 -392 -44 -132 -56 -160 -72 -160 -17 0 -20 -10 -26 -87\n-10 -133 -46 -309 -70 -342 -13 -18 -27 -65 -37 -130 -19 -112 -26 -130 -47\n-122 -11 4 -14 -9 -14 -66 0 -86 -17 -193 -33 -207 -7 -5 -23 -11 -37 -13 -20\n-2 -26 -11 -33 -48 -17 -85 -13 -308 7 -415 22 -121 16 -258 -14 -335 -17 -42\n-20 -79 -22 -241 -3 -183 -2 -191 18 -207 17 -14 25 -41 39 -132 10 -63 26\n-140 35 -170 l18 -55 1 58 c1 45 -4 65 -19 84 -12 15 -20 41 -20 62 0 20 -5\n91 -11 157 -12 119 -7 177 11 144 4 -8 11 -38 15 -65 11 -84 21 -81 24 7 5\n237 0 391 -14 402 -23 18 -34 117 -41 361 -6 197 -4 235 9 268 20 46 37 48 37\n4 0 -53 13 -53 30 0 8 26 19 47 24 46 5 -1 25 -53 45 -115 l36 -113 -1 -200\nc-1 -117 -6 -217 -13 -241 -8 -31 -8 -68 0 -145 6 -57 12 -158 13 -224 1 -110\n3 -122 24 -143 14 -14 22 -34 22 -54 0 -18 7 -75 15 -127 14 -81 14 -96 1\n-110 -8 -9 -21 -33 -29 -53 -11 -26 -22 -38 -36 -38 -15 0 -18 -5 -14 -21 4\n-15 -1 -27 -16 -38 -22 -16 -22 -18 -10 -136 9 -99 15 -125 34 -146 18 -23 23\n-44 29 -135 3 -60 17 -156 30 -214 13 -58 22 -107 21 -109 -9 -9 -28 16 -65\n82 -75 138 -75 116 -1 -76 6 -16 11 -54 11 -85 0 -54 2 -59 46 -102 26 -25 67\n-72 92 -105 38 -51 44 -56 38 -30 -4 17 -27 70 -51 118 -25 49 -45 95 -45 103\n0 30 19 11 60 -58 24 -40 81 -129 127 -197 47 -69 95 -148 108 -176 21 -48 85\n-263 85 -285 0 -6 -11 -10 -25 -10 -29 0 -56 38 -75 106 -13 46 -30 50 -30 8\n0 -37 -21 -25 -37 21 -7 22 -22 48 -32 60 -10 11 -41 63 -69 115 -80 149 -92\n159 -72 60 5 -28 5 -49 -2 -57 -13 -17 29 -91 51 -89 18 1 121 -194 121 -231\n0 -25 -10 -29 -27 -12 -6 6 -16 10 -22 8 -19 -7 17 -47 59 -69 21 -11 42 -30\n45 -42 4 -13 22 -45 40 -73 18 -27 52 -83 74 -122 43 -75 58 -92 41 -47 -12\n32 -13 77 -1 72 5 -1 40 -51 79 -109 39 -58 117 -155 174 -215 57 -60 114\n-127 128 -149 13 -22 50 -80 83 -130 44 -68 56 -96 52 -114 -4 -17 4 -39 31\n-80 57 -86 104 -140 306 -349 123 -128 194 -209 208 -240 12 -25 39 -71 59\n-102 20 -30 43 -68 51 -84 20 -39 127 -126 230 -187 47 -28 95 -64 106 -80 52\n-73 161 -173 218 -200 33 -16 87 -50 120 -77 34 -27 90 -70 126 -97 36 -27 90\n-72 121 -101 31 -29 69 -56 85 -59 55 -12 103 -38 134 -72 32 -34 104 -84 170\n-118 l35 -18 -24 27 c-14 14 -22 29 -18 32 17 18 284 -121 294 -153 2 -6 -6\n-13 -18 -15 -19 -2 -12 -10 39 -46 34 -24 62 -47 62 -51 0 -11 159 -83 267\n-121 111 -39 278 -81 458 -115 77 -15 213 -49 303 -76 264 -80 508 -137 727\n-170 44 -7 155 -12 246 -11 165 2 166 2 189 -23 14 -15 35 -25 51 -25 37 0 46\n-17 16 -31 -21 -10 -154 3 -294 27 -26 5 -33 3 -33 -9 0 -18 7 -20 195 -42\n162 -19 376 -36 386 -29 22 13 169 3 234 -18 51 -15 104 -22 195 -25 196 -7\n512 29 532 59 12 19 10 28 -7 28 -29 0 -14 19 23 29 65 18 233 51 258 51 13 0\n39 -9 59 -20 33 -18 39 -19 91 -5 42 11 60 12 73 3 20 -12 142 6 431 63 166\n33 169 34 530 234 135 75 288 152 340 171 52 20 187 80 299 135 112 54 213 99\n225 99 12 0 104 52 205 115 215 136 232 145 267 145 18 0 56 24 121 77 51 42\n96 80 99 84 2 4 -10 4 -28 -2 -48 -13 -71 -12 -61 5 6 11 139 124 296 252 9 7\n17 22 17 33 0 21 57 76 90 86 25 8 55 40 165 175 97 119 165 190 182 190 17 0\n16 -5 -3 -42 -9 -17 -17 -44 -18 -59 -1 -20 -36 -64 -127 -161 -146 -156 -159\n-171 -137 -163 29 11 299 318 414 470 33 44 85 116 114 160 29 44 79 105 110\n136 31 31 83 96 115 145 105 160 184 260 231 289 38 24 60 53 126 164 92 154\n190 353 239 486 24 64 47 106 80 145 48 56 123 196 113 212 -3 4 -11 8 -19 8\n-7 0 -15 7 -19 15 -9 23 40 168 79 233 33 55 185 423 185 448 0 7 -7 15 -16\n18 -13 5 -14 15 -9 49 11 65 86 290 101 302 30 22 94 532 94 747 0 89 -3 108\n-15 108 -12 0 -15 -14 -15 -64 0 -67 -6 -96 -21 -96 -8 0 -12 16 -25 115 -6\n47 -7 48 -16 23 -5 -16 -16 -28 -23 -28 -14 0 -15 6 -42 235 -16 131 -18 142\n-22 90 -2 -33 3 -156 9 -272 7 -117 10 -251 6 -297 -9 -125 -33 -228 -56 -248\n-11 -9 -20 -27 -20 -40 0 -53 -44 -349 -62 -421 -21 -80 -40 -99 -57 -54 -11\n28 -11 30 -60 -168 -94 -375 -187 -645 -316 -912 -84 -174 -194 -367 -243\n-424 -14 -17 -36 -53 -47 -78 -42 -90 -179 -272 -354 -470 -51 -57 -99 -115\n-108 -127 -8 -13 -21 -24 -29 -24 -16 0 -75 -72 -217 -266 -129 -175 -246\n-299 -274 -290 -25 8 -119 -60 -243 -177 -165 -156 -403 -339 -680 -523 -222\n-148 -307 -197 -327 -186 -21 13 -50 2 -233 -86 -166 -79 -200 -92 -247 -92\n-33 0 -148 -42 -168 -61 -6 -7 5 -8 33 -3 34 5 42 4 42 -9 0 -9 -30 -27 -82\n-48 -99 -39 -215 -95 -245 -119 -15 -11 -50 -20 -102 -24 -72 -7 -83 -10 -115\n-41 -40 -38 -111 -65 -169 -65 -29 0 -46 -6 -62 -24 -24 -25 -80 -46 -127 -46\n-38 0 -35 12 10 49 44 36 27 41 -48 11 -106 -42 -137 -13 -42 38 l57 31 -36 1\nc-20 0 -130 -31 -245 -69 -226 -75 -317 -96 -463 -110 -130 -12 -169 2 -98 34\nl32 15 -50 -4 c-27 -2 -104 -14 -170 -25 -102 -18 -143 -21 -270 -16 -82 4\n-199 15 -260 26 -66 12 -196 24 -325 29 -124 6 -241 16 -277 25 -67 16 -270\n113 -292 139 -7 9 -49 27 -93 41 -93 29 -88 29 -88 11 0 -24 -47 -26 -215 -13\n-124 11 -169 18 -201 35 -37 19 -100 78 -120 115 -5 8 -54 32 -109 52 -55 20\n-215 92 -355 160 -261 126 -299 141 -430 170 -89 20 -216 80 -285 135 -139\n112 -208 160 -219 152 -20 -15 -95 -6 -117 14 -35 31 -79 106 -79 135 0 22 -8\n31 -43 48 -29 14 -110 88 -231 211 -158 160 -192 190 -217 190 -45 0 -151 112\n-227 238 -34 57 -62 109 -62 116 0 7 -33 43 -72 81 -208 195 -396 386 -428\n435 -35 55 -144 269 -155 303 -3 13 -11 17 -25 12 -24 -8 -71 19 -114 64 -21\n21 -33 28 -41 21 -18 -15 -39 14 -93 130 -112 241 -184 421 -178 445 4 17 -10\n65 -48 157 -63 155 -86 228 -86 276 0 31 2 33 17 21 19 -16 93 -170 177 -368\n63 -147 135 -295 141 -289 2 2 -34 98 -81 213 -109 270 -228 615 -215 628 6 6\n31 -4 68 -26 32 -19 125 -71 206 -115 161 -88 162 -88 109 11 -34 64 -46 72\n-106 72 l-51 0 -35 70 c-25 52 -35 85 -36 127 -1 39 -9 69 -23 90 -11 18 -28\n47 -37 65 -9 17 -24 33 -33 36 -9 2 -21 24 -29 51 -6 26 -30 75 -52 109 -43\n69 -67 149 -72 242 -3 55 -1 60 19 63 13 2 27 -5 36 -18 15 -21 15 -21 22 9\n15 67 28 38 65 -149 18 -89 26 -110 52 -137 18 -18 33 -31 36 -29 2 2 -3 24\n-11 48 -11 32 -13 76 -9 175 4 127 -8 223 -28 223 -14 0 -32 -30 -39 -62 -4\n-17 -12 -33 -18 -35 -13 -5 -18 12 -28 89 -6 46 -6 47 -38 41 -29 -4 -35 -1\n-46 24 -17 37 -27 133 -14 133 6 0 10 85 9 233 -1 181 3 254 17 332 10 54 20\n101 23 104 3 4 12 -3 20 -13 16 -23 26 -17 25 16 -3 87 -15 185 -23 195 -16\n20 -21 229 -9 363 12 138 48 355 63 383 5 10 13 15 17 12 12 -7 21 19 21 58 0\n53 31 146 51 152 10 3 29 30 42 59 21 44 25 72 29 192 5 136 6 142 52 261 30\n80 46 138 46 167 0 25 10 75 21 110 24 72 164 338 198 374 28 30 57 90 121\n246 29 70 62 137 74 147 19 18 50 98 41 107 -12 12 -145 -191 -202 -307 -37\n-77 -69 -129 -74 -124 -11 11 19 138 73 311 35 111 48 140 85 183 34 40 43 58\n43 88 0 67 27 136 64 165 52 39 120 150 166 269 61 156 180 314 180 237 0 -25\n-30 -87 -122 -246 -49 -87 -70 -133 -72 -163 -3 -39 -2 -40 14 -26 9 8 22 15\n29 15 7 0 22 21 33 48 22 50 88 141 132 181 20 19 29 22 38 13 20 -20 35 -14\n89 34 28 25 53 43 56 40 3 -3 -6 -25 -21 -50 -14 -24 -26 -48 -26 -52 0 -27\n75 87 134 204 l27 53 -24 -16 c-22 -14 -26 -14 -40 0 -9 8 -22 15 -31 15 -33\n0 -26 24 22 68 28 26 66 73 86 105 30 50 44 63 96 88 34 16 123 69 198 118\n189 122 238 146 268 130 28 -15 22 -19 219 137 227 179 386 297 510 380 111\n73 151 90 138 58 -8 -21 16 -14 115 34 61 29 88 51 162 131 l89 96 83 24 c46\n13 128 36 183 51 80 22 122 40 210 95 146 90 254 139 365 164 33 7 47 4 92\n-17 79 -39 148 -36 241 11 58 29 105 42 247 68 96 18 220 34 274 35 100 4 140\n16 92 28 -30 7 -34 22 -8 30 42 12 88 18 126 18 22 -1 72 6 111 14 193 41 363\n66 485 71 102 4 138 9 147 20 17 21 156 40 189 25 28 -13 84 -16 84 -4 0 4\n-63 19 -139 34 -77 16 -151 32 -165 38 -28 10 -34 25 -13 32 17 6 560 -17 862\n-37 175 -11 270 -22 315 -35 36 -10 128 -33 205 -50 161 -37 205 -53 205 -74\n0 -11 31 -25 103 -46 56 -17 128 -40 160 -51 32 -11 77 -22 99 -25 92 -9 173\n-51 166 -85 -2 -8 50 -41 137 -85 77 -40 141 -78 144 -85 3 -9 -10 -11 -52 -6\n-47 5 -56 3 -60 -13 -3 -12 5 -22 29 -34 39 -18 44 -40 12 -57 -64 -34 -301\n37 -282 85 3 8 -10 17 -38 25 -24 7 -68 28 -99 47 -37 22 -83 39 -132 48 -85\n17 -151 47 -167 76 -12 23 -6 40 16 40 8 0 14 9 14 20 0 18 -7 20 -60 20 -75\n0 -130 21 -130 49 0 26 -26 39 -180 89 -148 48 -265 78 -337 88 -44 5 -53 4\n-53 -9 0 -9 13 -17 34 -21 44 -8 88 -42 66 -50 -8 -3 -71 3 -140 13 -106 15\n-127 16 -141 4 -19 -16 -363 -23 -489 -10 l-75 7 44 -22 c24 -13 43 -27 43\n-33 0 -5 -17 -14 -36 -19 -30 -8 -44 -5 -93 20 -53 27 -67 29 -163 29 -132 0\n-180 -9 -180 -35 0 -10 -4 -22 -10 -25 -31 -19 1 -25 128 -23 75 2 265 -1 422\n-6 217 -7 294 -6 322 3 31 10 59 8 190 -14 278 -49 552 -118 722 -184 43 -17\n83 -28 88 -25 11 7 196 -92 229 -123 15 -14 49 -39 75 -57 76 -49 65 -70 -28\n-51 -30 6 -38 4 -38 -7 0 -9 27 -23 70 -37 39 -12 99 -42 134 -66 44 -30 88\n-49 145 -64 44 -12 121 -38 169 -59 90 -39 232 -126 232 -142 0 -5 27 -28 60\n-50 33 -22 60 -45 60 -50 0 -13 83 -60 106 -60 29 0 123 -47 161 -80 29 -26\n42 -30 91 -30 68 0 114 -20 197 -83 87 -65 195 -167 195 -182 0 -25 -15 -24\n-82 5 l-67 28 127 -123 c229 -220 239 -228 322 -254 66 -21 84 -32 145 -92 39\n-37 84 -86 100 -109 17 -23 49 -64 73 -92 25 -29 41 -56 38 -65 -5 -13 22 -42\n90 -96 21 -16 28 -17 34 -6 13 21 42 -11 86 -94 20 -40 45 -84 56 -99 23 -33\n23 -46 -1 -50 -18 -3 -14 -12 32 -88 46 -76 52 -82 55 -57 4 32 1 31 40 12 45\n-23 222 -308 222 -358 0 -7 20 -45 44 -83 24 -38 76 -124 115 -191 40 -68 74\n-123 77 -123 2 0 0 9 -6 19 -12 24 -13 61 -1 61 5 0 11 14 15 31 5 25 0 38\n-28 72 -40 51 -148 273 -148 307 0 14 -15 43 -33 65 -18 22 -83 117 -145 210\n-62 94 -139 204 -171 245 -80 105 -144 229 -130 252 6 9 8 23 6 31 -8 21 -122\n117 -138 117 -8 0 -64 52 -125 115 -60 63 -113 115 -117 115 -9 0 -135 112\n-201 178 -41 41 -56 72 -34 72 19 0 212 -153 278 -221 37 -38 73 -69 81 -69\n22 0 166 -127 313 -276 181 -184 233 -246 304 -362 32 -53 82 -130 109 -172\n28 -41 54 -83 58 -93 15 -40 170 -255 186 -260 18 -4 97 -117 127 -181 12 -25\n25 -35 45 -38 16 -3 29 -4 29 -3 0 1 -11 35 -25 76 -25 71 -48 215 -37 232 2\n5 15 7 28 4 13 -2 24 -1 24 2 0 12 -33 56 -85 111 -66 72 -105 123 -105 141 0\n8 -14 31 -30 51 -32 38 -100 178 -100 204 0 7 7 14 15 14 14 0 14 4 -1 33 -42\n83 -168 306 -171 303 -2 -2 4 -20 13 -40 28 -57 8 -54 -54 7 -32 31 -63 57\n-69 57 -7 0 -33 27 -58 60 -25 33 -50 60 -55 60 -5 0 -26 23 -47 51 -31 42\n-164 197 -253 297 -13 15 -27 21 -39 17 -37 -11 -161 108 -161 156 0 10 11 26\n25 35 24 16 26 15 87 -30 43 -32 71 -46 94 -46 22 0 47 -12 82 -40 28 -21 53\n-44 57 -50 9 -15 25 -12 25 4 0 15 -65 103 -134 181 -36 40 -47 48 -57 38 -7\n-7 -22 -13 -32 -13 -17 0 -18 -5 -13 -35 4 -19 3 -35 -2 -35 -4 0 -33 18 -63\n41 -30 22 -94 61 -144 86 -123 62 -168 94 -255 184 -54 56 -91 84 -133 103\n-36 16 -83 49 -123 88 -55 53 -63 64 -50 74 13 9 9 13 -22 28 -115 54 -222\n137 -222 172 0 24 24 16 109 -36 128 -78 130 -79 98 -41 -15 18 -27 41 -27 51\n0 10 -16 30 -35 44 -34 26 -47 56 -24 56 8 0 7 5 -2 16 -9 11 -23 14 -47 10\n-59 -9 -198 72 -367 215 -118 99 -180 139 -255 164 -30 10 -120 45 -200 77\n-405 166 -659 267 -697 278 -32 10 -44 20 -52 41 -10 29 -11 29 -93 29 -46 0\n-114 3 -153 6 -68 5 -69 5 -42 -11 29 -17 36 -35 13 -35 -29 0 -282 40 -317\n50 -23 6 -46 7 -60 1 -13 -4 -37 -7 -54 -5 -16 2 -102 11 -190 20 -88 9 -170\n23 -181 30 -14 8 -25 9 -31 3 -6 -6 -25 -6 -54 1 -24 5 -105 13 -179 16 -74 3\n-155 10 -180 16 -25 6 -97 16 -160 22 l-115 11 3 34 2 33 -127 -4 c-105 -3\n-137 -8 -178 -27 -65 -29 -125 -22 -125 15 0 20 9 26 63 42 l62 19 -87 -1\nc-85 -1 -88 -2 -88 -24z m345 -282 c19 -7 19 -8 -5 -18 -14 -5 -40 -13 -57\n-17 -23 -5 -33 -12 -33 -26 0 -10 -1 -19 -2 -19 -2 0 -41 -7 -88 -15 -47 -8\n-144 -15 -217 -15 -110 0 -133 3 -141 16 -7 13 -17 14 -73 4 -135 -24 -240\n-52 -272 -74 -42 -29 -94 -37 -179 -29 -52 4 -67 10 -71 24 -4 15 -10 16 -48\n8 -52 -12 -412 -119 -419 -125 -2 -3 39 -2 92 2 57 4 97 3 101 -3 8 -12 -104\n-110 -153 -134 -21 -10 -57 -21 -81 -24 -24 -4 -86 -16 -138 -28 -90 -21 -93\n-21 -107 -3 -10 14 -20 17 -41 11 -15 -4 -22 -10 -15 -12 38 -14 -22 -55 -179\n-122 -63 -27 -184 -81 -271 -119 -142 -64 -246 -103 -353 -131 -67 -18 -105\n-47 -105 -80 0 -41 -56 -88 -179 -151 -56 -28 -101 -55 -101 -59 0 -3 -18 -28\n-40 -55 -53 -64 -53 -82 0 -55 24 13 47 18 60 14 16 -5 33 4 73 42 57 54 107\n79 134 68 17 -6 16 -8 -4 -23 -12 -9 -39 -27 -60 -40 -21 -13 -48 -37 -58 -53\n-11 -16 -43 -45 -71 -64 -28 -18 -57 -41 -65 -51 -18 -22 -239 -198 -268 -214\n-27 -14 -51 -7 -51 15 0 8 -4 15 -10 15 -5 0 -10 14 -10 30 0 17 -3 30 -6 30\n-11 0 -108 -61 -131 -83 -13 -11 -35 -21 -50 -22 -17 0 -60 -24 -107 -58 -74\n-54 -106 -68 -106 -48 0 30 195 175 317 237 35 17 72 39 81 47 9 8 58 42 109\n76 80 53 123 94 111 106 -2 2 -38 -24 -82 -57 -43 -32 -85 -57 -92 -54 -7 3\n-36 -16 -64 -41 -28 -25 -53 -43 -57 -40 -8 9 41 88 94 153 24 31 43 58 40 60\n-13 14 -177 -124 -332 -281 -99 -99 -202 -199 -230 -220 -27 -22 -116 -103\n-196 -180 -172 -167 -281 -256 -381 -312 -146 -83 -162 -66 -65 67 50 68 69\n86 93 90 35 6 87 62 309 335 138 169 328 367 409 425 27 19 74 61 104 93 68\n71 113 99 161 102 29 2 58 18 127 70 172 131 352 234 649 370 105 48 199 97\n211 109 28 31 140 106 157 106 7 0 17 -3 21 -7 4 -4 33 -8 64 -8 51 0 57 -2\n60 -22 3 -18 -8 -28 -65 -57 -95 -49 -47 -46 54 3 45 22 87 49 93 61 17 31\n290 207 365 236 81 30 238 74 265 74 12 0 52 13 90 29 66 28 69 29 112 14 58\n-20 117 -14 324 36 188 45 354 74 375 66 8 -2 37 -1 64 4 64 11 584 12 610 1z\nm-4969 -2945 c-31 -69 -65 -157 -75 -195 -26 -92 -49 -143 -110 -237 -28 -44\n-51 -90 -51 -102 0 -12 -25 -83 -56 -158 -31 -75 -65 -172 -76 -215 -27 -109\n-60 -179 -123 -265 -56 -77 -76 -130 -55 -143 18 -11 8 -66 -61 -340 -57 -225\n-80 -285 -95 -247 -3 9 -1 31 5 48 15 43 14 54 -3 40 -22 -18 -29 2 -21 60 5\n33 3 54 -5 64 -21 26 -14 134 13 206 44 114 69 158 91 161 29 4 36 48 8 48\n-46 0 -44 20 17 201 32 96 69 197 84 224 38 75 85 135 105 135 14 0 26 19 47\n70 30 73 29 86 -3 76 -18 -6 -42 -50 -57 -103 -8 -28 -45 -32 -45 -5 0 22 36\n99 93 198 30 52 44 87 41 100 -7 28 58 212 107 301 45 81 67 100 100 83 15 -9\n24 -8 35 0 7 7 21 10 29 6 11 -4 23 10 41 47 33 65 55 90 67 78 5 -5 -13 -59\n-47 -136z m-766 -1904 c11 -21 -1 -106 -18 -123 -21 -21 -33 3 -27 50 13 97\n23 114 45 73z m-175 -141 c3 -5 17 -101 31 -212 13 -112 32 -243 41 -293 23\n-130 9 -505 -20 -505 -7 0 -8 58 -4 173 5 181 0 307 -14 307 -11 0 -52 -133\n-83 -273 -15 -65 -32 -130 -38 -145 l-12 -27 -4 35 c-6 57 17 402 39 570 11\n85 20 162 20 170 -4 82 5 184 16 203 6 10 21 9 28 -3z m109 -1297 c7 -16 21\n-62 30 -103 10 -41 30 -114 46 -161 36 -105 52 -259 28 -259 -17 0 -28 20 -28\n51 0 11 -15 50 -34 87 -19 37 -38 79 -41 93 -4 16 -13 26 -23 25 -9 0 -19 10\n-23 24 -9 31 -11 233 -3 254 9 25 32 19 48 -11z m-394 -651 c0 -40 -25 -19\n-28 24 -2 37 -1 38 13 20 8 -11 15 -31 15 -44z m551 -632 c23 -13 26 -62 4\n-80 -12 -10 -16 -8 -25 15 -11 28 -14 75 -4 75 3 0 14 -5 25 -10z\"/>\n<path d=\"M3680 11630 c-41 -16 -85 -29 -97 -29 -34 -1 -214 -103 -223 -126 -4\n-12 -24 -33 -44 -49 -20 -15 -36 -31 -36 -37 0 -27 65 4 240 116 36 23 104 65\n153 94 48 29 87 54 87 57 0 5 7 7 -80 -26z\"/>\n<path d=\"M3138 11349 c-18 -10 -25 -39 -10 -39 13 0 52 30 52 41 0 12 -20 11\n-42 -2z\"/>\n<path d=\"M1195 9108 c-24 -29 -25 -32 -9 -41 21 -12 44 14 44 50 0 30 -3 29\n-35 -9z\"/>\n<path d=\"M4995 12644 c-133 -23 -407 -82 -488 -104 -33 -10 -36 -14 -31 -35 5\n-22 0 -28 -47 -50 -68 -31 -79 -31 -79 0 0 23 -3 25 -27 19 -30 -7 -74 -32\n-110 -63 -30 -25 -29 -28 6 -23 16 2 31 -1 35 -6 11 -18 164 35 311 108 172\n86 287 120 410 124 69 2 105 9 155 29 84 33 54 34 -135 1z\"/>\n<path d=\"M7050 12589 c43 -7 416 -11 395 -4 -5 2 -107 5 -225 7 -118 3 -195 1\n-170 -3z\"/>\n<path d=\"M3475 12094 c-55 -29 -109 -53 -119 -54 -22 0 -217 -101 -313 -162\n-93 -59 -85 -60 27 -5 50 24 56 25 67 11 17 -24 52 -8 198 92 134 90 176 115\n219 123 17 4 32 15 37 29 12 31 0 28 -116 -34z\"/>\n<path d=\"M10145 11495 c17 -14 44 -33 60 -42 29 -15 30 -15 13 4 -10 10 -37\n29 -60 42 l-43 22 30 -26z\"/>\n<path d=\"M10211 11337 c2 -2 38 -25 79 -52 45 -28 67 -38 55 -25 -20 23 -112\n80 -129 80 -5 0 -7 -2 -5 -3z\"/>\n<path d=\"M10410 11276 c0 -7 26 -33 58 -57 31 -24 113 -93 182 -153 125 -110\n124 -91 -2 30 -64 61 -223 194 -233 194 -3 0 -5 -6 -5 -14z\"/>\n<path d=\"M1756 10816 c-36 -41 -66 -77 -66 -80 0 -11 36 7 63 33 31 28 82 109\n75 117 -3 2 -35 -29 -72 -70z\"/>\n<path d=\"M1590 10495 c-17 -18 -21 -28 -13 -36 8 -8 16 -3 28 21 21 41 15 47\n-15 15z\"/>\n<path d=\"M11135 10510 c3 -5 11 -10 16 -10 6 0 7 5 4 10 -3 6 -11 10 -16 10\n-6 0 -7 -4 -4 -10z\"/>\n<path d=\"M11180 10501 c0 -9 34 -21 60 -21 11 1 10 4 -4 15 -22 16 -56 20 -56\n6z\"/>\n<path d=\"M1548 10389 c-16 -22 -28 -47 -28 -58 0 -28 -74 -124 -120 -156 -47\n-33 -70 -65 -46 -65 20 0 13 -18 -44 -110 -57 -91 -93 -160 -87 -167 3 -2 22\n24 43 59 69 115 125 189 142 186 11 -2 40 35 94 122 78 126 98 176 82 210 -8\n16 -12 14 -36 -21z\"/>\n<path d=\"M2452 10417 c-10 -11 -9 -17 3 -27 13 -11 19 -10 33 3 15 16 15 17 0\n17 -9 0 -18 5 -20 11 -2 7 -8 6 -16 -4z\"/>\n<path d=\"M1425 10328 c-65 -72 -111 -136 -102 -144 3 -3 10 -3 15 0 18 11 163\n206 153 206 -5 0 -35 -28 -66 -62z\"/>\n<path d=\"M11395 10283 c46 -83 54 -93 47 -56 -4 26 -67 123 -79 123 -2 0 12\n-30 32 -67z\"/>\n<path d=\"M1164 10077 c-89 -93 -111 -124 -221 -313 -115 -198 -253 -453 -253\n-467 0 -4 7 -7 16 -7 12 0 15 -6 11 -22 -44 -204 -60 -298 -49 -298 19 0 45\n80 58 177 15 119 33 164 98 253 31 42 43 66 35 70 -13 9 9 55 57 118 18 24 31\n49 28 56 -7 18 193 301 255 360 17 17 31 38 31 48 0 10 9 41 20 70 11 28 18\n53 16 55 -1 2 -47 -43 -102 -100z\"/>\n<path d=\"M2051 9823 c-41 -48 -49 -63 -32 -63 4 0 25 25 45 55 20 30 34 55 32\n55 -2 0 -23 -21 -45 -47z\"/>\n<path d=\"M1096 9801 c-4 -7 -5 -15 -2 -18 9 -9 19 4 14 18 -4 11 -6 11 -12 0z\"/>\n<path d=\"M1896 9677 c-52 -89 -98 -179 -94 -183 5 -5 85 112 112 163 29 58 14\n76 -18 20z\"/>\n<path d=\"M1755 9650 c-9 -17 -14 -37 -12 -43 3 -7 12 5 21 27 21 47 14 60 -9\n16z\"/>\n<path d=\"M645 9204 c-15 -33 -43 -97 -62 -144 -19 -47 -42 -89 -50 -94 -22\n-12 -94 -172 -141 -311 -42 -125 -66 -251 -60 -320 l3 -40 14 60 c7 33 17 85\n21 115 6 53 88 261 129 332 12 19 29 59 40 89 10 30 41 104 69 164 50 110 78\n192 68 202 -3 3 -17 -21 -31 -53z\"/>\n<path d=\"M11865 8920 c10 -11 20 -20 22 -20 2 0 -1 9 -7 20 -6 11 -16 20 -22\n20 -6 0 -3 -9 7 -20z\"/>\n<path d=\"M12225 8731 c58 -147 84 -237 83 -281 -1 -39 66 -233 82 -238 14 -5\n13 0 -16 74 -18 43 -23 69 -17 75 15 15 38 -12 59 -68 18 -51 54 -99 54 -73 0\n25 -131 342 -190 460 -85 169 -110 192 -55 51z\"/>\n<path d=\"M12040 8819 c0 -17 41 -139 49 -143 15 -10 -8 86 -29 118 -11 17 -20\n28 -20 25z\"/>\n<path d=\"M11803 8744 c26 -83 116 -326 116 -316 1 24 -100 321 -111 328 -7 5\n-9 1 -5 -12z\"/>\n<path d=\"M12230 8453 c0 -4 5 -15 10 -23 8 -13 10 -13 10 2 0 9 -4 20 -10 23\n-5 3 -10 3 -10 -2z\"/>\n<path d=\"M11830 8362 c0 -9 65 -136 130 -252 l41 -75 -6 49 c-9 64 -11 70 -38\n81 -14 7 -39 45 -69 108 -43 88 -58 111 -58 89z\"/>\n<path d=\"M12264 8188 c3 -9 10 -36 16 -60 7 -23 24 -67 40 -98 28 -57 75 -263\n86 -380 10 -97 34 -135 71 -112 10 6 10 21 1 70 -11 60 -7 85 11 66 5 -5 26\n-49 46 -99 20 -49 42 -94 47 -100 17 -16 1 164 -25 289 -25 123 -47 151 -47\n62 0 -31 -4 -56 -10 -56 -5 0 -28 27 -50 60 -35 51 -44 77 -65 180 -22 106\n-49 179 -62 166 -3 -3 0 -21 7 -41 23 -71 -11 -57 -47 19 -13 28 -22 43 -19\n34z\"/>\n<path d=\"M145 7620 c-3 -11 -2 -28 4 -37 9 -16 10 -16 11 4 0 12 3 28 6 37 3\n9 1 16 -4 16 -6 0 -13 -9 -17 -20z\"/>\n<path d=\"M12477 7269 c-7 -54 23 -179 50 -206 28 -28 39 -115 18 -155 -26 -54\n-18 -100 20 -112 20 -6 20 -1 19 174 -1 210 -10 253 -64 305 l-37 36 -6 -42z\"/>\n<path d=\"M981 7274 c0 -11 3 -14 6 -6 3 7 2 16 -1 19 -3 4 -6 -2 -5 -13z\"/>\n<path d=\"M913 5973 c-10 -36 -9 -172 1 -198 7 -18 9 -16 20 15 10 29 10 38 -2\n52 -11 14 -14 34 -9 88 6 74 3 88 -10 43z\"/>\n<path d=\"M12271 4784 c0 -11 3 -14 6 -6 3 7 2 16 -1 19 -3 4 -6 -2 -5 -13z\"/>\n<path d=\"M1340 4505 c0 -3 11 -28 25 -55 17 -34 23 -58 19 -78 -9 -44 45 -163\n131 -288 43 -61 81 -130 90 -158 19 -66 91 -189 148 -251 l44 -49 -5 33 c-2\n19 -24 67 -48 108 -67 113 -99 178 -219 447 -101 227 -114 252 -148 273 -20\n13 -37 21 -37 18z\"/>\n<path d=\"M1475 3995 c17 -76 22 -132 14 -153 -11 -29 11 -69 65 -121 33 -32\n37 -33 65 -22 16 7 39 10 51 6 l22 -7 -18 32 c-11 18 -26 35 -35 37 -8 2 -42\n51 -75 109 -32 57 -67 114 -77 126 l-19 23 7 -30z\"/>\n<path d=\"M1170 3854 c0 -6 7 -19 15 -30 8 -10 14 -14 14 -9 0 6 -6 19 -14 29\n-8 11 -15 15 -15 10z\"/>\n<path d=\"M1257 3758 c-17 -17 -15 -21 28 -87 85 -130 107 -123 38 11 -46 91\n-49 94 -66 76z\"/>\n<path d=\"M1789 3600 c-15 -16 -13 -25 40 -121 54 -99 58 -104 105 -122 27 -9\n50 -16 52 -15 3 4 -162 258 -174 269 -4 3 -14 -2 -23 -11z\"/>\n<path d=\"M1525 3511 c-4 -14 15 -50 65 -124 79 -117 104 -170 97 -201 -4 -17\n8 -31 57 -68 103 -78 102 -63 -2 92 -44 63 -105 159 -137 213 -32 54 -61 100\n-66 102 -4 3 -10 -3 -14 -14z\"/>\n<path d=\"M741 3440 c0 -25 73 -183 87 -188 19 -6 15 7 -38 108 -27 52 -49 88\n-49 80z\"/>\n<path d=\"M916 3348 c17 -29 85 -128 88 -128 13 0 -36 104 -56 120 -30 23 -43\n26 -32 8z\"/>\n<path d=\"M2001 3287 c-12 -23 -11 -28 14 -61 15 -20 31 -36 35 -36 14 0 130\n-160 144 -198 7 -20 17 -45 21 -54 5 -13 2 -18 -11 -18 -14 0 -7 -11 26 -46\n50 -51 98 -80 110 -67 9 9 13 28 11 59 -1 24 -98 158 -211 291 -41 49 -86 104\n-100 122 l-25 33 -14 -25z m287 -387 c35 -22 45 -60 14 -60 -23 0 -76 55 -68\n69 10 15 16 14 54 -9z\"/>\n<path d=\"M990 3038 c0 -40 81 -222 119 -268 l20 -25 1 23 c0 44 30 20 132\n-103 106 -129 173 -248 163 -291 -10 -45 152 -186 354 -308 8 -5 7 1 -5 19\n-11 16 -14 29 -7 33 36 25 5 85 -61 116 -25 12 -62 56 -143 174 -61 86 -130\n190 -154 229 -24 40 -49 73 -55 73 -20 0 -114 91 -149 142 -19 29 -35 44 -37\n36 -7 -21 -32 5 -84 89 -34 54 -50 71 -58 63 -9 -6 -16 -6 -24 2 -9 9 -12 8\n-12 -4z\"/>\n<path d=\"M2293 2666 c7 -31 18 -48 38 -60 73 -43 121 -112 72 -104 -27 5 -25\n-16 8 -65 91 -137 498 -373 988 -571 155 -63 242 -104 255 -120 30 -34 119\n-92 281 -180 76 -41 144 -77 149 -79 5 -2 6 -9 2 -15 -5 -8 -22 -10 -49 -7\nl-42 6 45 -25 c45 -24 45 -24 76 -5 43 26 58 24 143 -21 72 -38 105 -44 80\n-13 -7 8 -34 25 -60 39 -51 25 -65 39 -50 48 24 15 -4 45 -62 66 -118 43 -323\n154 -408 221 -20 16 -44 29 -53 29 -39 0 -166 95 -166 125 0 7 -26 28 -57 48\n-32 19 -119 86 -193 147 -197 163 -213 174 -410 265 -182 85 -383 191 -517\n271 -39 24 -74 44 -76 44 -2 0 0 -20 6 -44z\"/>\n<path d=\"M1890 2045 c0 -4 20 -30 45 -58 25 -29 45 -59 45 -68 0 -21 234 -239\n257 -239 3 0 -36 43 -86 95 -97 102 -112 131 -61 120 46 -10 29 17 -48 75 -47\n35 -69 47 -78 39 -8 -7 -21 -2 -43 17 -17 14 -31 23 -31 19z\"/>\n<path d=\"M3181 1830 c45 -42 99 -82 139 -101 36 -17 98 -47 138 -66 60 -28 72\n-38 70 -55 -3 -24 52 -62 230 -156 117 -62 187 -86 210 -73 12 7 -5 19 -74 54\n-87 44 -119 70 -162 133 -23 34 -186 120 -277 147 -53 15 -147 69 -252 143\n-96 68 -108 55 -22 -26z\"/>\n<path d=\"M10763 1828 c-25 -33 -25 -40 1 -23 26 17 35 35 17 35 -5 0 -13 -6\n-18 -12z\"/>\n<path d=\"M2082 1731 c6 -18 172 -161 186 -161 23 0 11 15 -78 94 -75 67 -118\n93 -108 67z\"/>\n<path d=\"M10585 1700 c-3 -5 -2 -10 4 -10 5 0 13 5 16 10 3 6 2 10 -4 10 -5 0\n-13 -4 -16 -10z\"/>\n<path d=\"M10210 1600 c-25 -22 -38 -39 -30 -39 8 0 35 17 60 39 25 22 38 40\n30 40 -8 0 -35 -18 -60 -40z\"/>\n<path d=\"M10470 1585 c-20 -21 -22 -28 -12 -50 6 -14 15 -25 20 -25 9 0 72 80\n72 92 0 19 -58 7 -80 -17z\"/>\n<path d=\"M4544 1411 c8 -12 46 -21 46 -11 0 8 -24 20 -41 20 -6 0 -8 -4 -5 -9z\"/>\n<path d=\"M2460 1383 c0 -5 15 -18 33 -31 19 -12 81 -65 138 -116 77 -70 111\n-94 130 -94 17 1 84 -37 195 -109 93 -60 223 -138 289 -172 66 -34 131 -75\n145 -90 25 -28 136 -81 168 -81 9 0 100 -40 202 -88 102 -49 223 -103 268\n-121 46 -18 91 -36 100 -40 35 -17 453 -153 588 -190 279 -78 652 -152 956\n-191 130 -16 433 -40 516 -40 68 0 72 1 63 18 -8 15 -27 20 -88 26 -80 6 -106\n17 -86 37 8 8 51 10 133 7 l121 -4 -24 24 c-36 36 -154 41 -314 13 -117 -20\n-246 -25 -308 -12 -21 4 -31 13 -33 28 -3 23 -43 36 -150 48 -30 3 -91 18\n-135 32 -62 19 -94 24 -134 20 -44 -5 -55 -3 -63 12 -7 13 -31 21 -92 30 -95\n13 -423 85 -459 100 -13 6 -79 24 -146 41 -67 17 -193 58 -280 91 -198 76\n-198 76 -182 95 9 11 8 14 -4 14 -8 0 -45 9 -81 21 -51 15 -69 26 -76 44 -7\n18 -31 30 -122 60 -62 21 -164 57 -226 81 -129 50 -143 52 -117 24 71 -78\n-128 15 -217 102 -35 34 -65 52 -101 63 -54 16 -107 55 -107 80 0 20 30 19 92\n-5 29 -11 55 -20 58 -20 3 0 -40 24 -95 54 -95 50 -124 61 -97 34 18 -18 14\n-38 -6 -38 -24 0 -94 45 -214 137 -72 55 -102 73 -117 68 -12 -3 -40 4 -70 20\n-28 14 -51 22 -51 18z\"/>\n<path d=\"M4634 1349 c9 -25 21 -33 86 -53 41 -13 125 -34 185 -46 176 -35 225\n-49 303 -87 72 -35 76 -36 169 -31 114 6 135 19 66 41 -270 86 -283 89 -312\n77 -50 -20 -275 23 -287 55 -3 8 -31 19 -61 25 -31 7 -79 20 -108 30 l-53 18\n12 -29z\"/>\n<path d=\"M4235 1354 c23 -17 90 -36 113 -32 24 5 -42 34 -93 41 -37 6 -38 5\n-20 -9z\"/>\n<path d=\"M4140 1296 c15 -14 70 -31 70 -21 0 7 -57 35 -72 35 -9 0 -8 -4 2\n-14z\"/>\n<path d=\"M4420 1204 c0 -5 191 -76 194 -73 11 13 14 59 5 65 -10 6 -199 14\n-199 8z\"/>\n<path d=\"M5729 1116 c-1 -3 -2 -9 -3 -13 -1 -5 -5 -14 -9 -21 -6 -8 0 -15 17\n-22 60 -22 14 -50 -82 -50 -88 0 -132 9 -132 26 0 17 -41 19 -57 3 -6 -6 -45\n-14 -86 -18 -42 -4 -79 -10 -82 -13 -17 -17 366 -78 530 -84 123 -5 144 -3\n175 13 34 17 35 20 35 75 0 32 -5 62 -11 68 -18 18 -292 51 -295 36z\"/>\n<path d=\"M4690 1102 c41 -27 210 -71 210 -54 0 4 -44 19 -97 31 -54 13 -105\n26 -113 28 -13 4 -13 3 0 -5z\"/>\n<path d=\"M4700 930 c15 -29 43 -40 97 -39 93 1 93 14 0 37 -108 27 -111 27\n-97 2z\"/>\n<path d=\"M9540 886 c-57 -31 -70 -42 -53 -44 24 -4 124 40 142 62 26 31 -17\n22 -89 -18z\"/>\n<path d=\"M8615 511 c-121 -43 -254 -92 -295 -109 -41 -18 -85 -32 -99 -32 -22\n0 -91 -35 -91 -47 0 -2 14 -2 30 2 34 8 41 -9 13 -31 -10 -8 -13 -14 -6 -14\n19 0 342 107 502 166 245 92 304 124 232 124 -17 0 -33 5 -36 10 -3 6 -12 10\n-18 9 -7 0 -111 -35 -232 -78z\"/>\n<path d=\"M7870 304 c-141 -44 -506 -104 -918 -151 -179 -20 -241 -30 -238 -39\n8 -22 -16 -31 -123 -48 -119 -19 -151 -33 -46 -20 39 5 95 7 125 6 85 -5 184\n8 171 21 -6 6 -11 17 -11 24 0 19 186 18 233 -2 52 -21 151 -18 316 10 145 24\n181 35 122 35 -19 0 -31 5 -29 11 5 14 203 83 351 122 64 17 117 34 117 39 0\n11 -16 9 -70 -8z\"/>\n<path d=\"M7585 140 c-3 -6 1 -7 9 -4 18 7 21 14 7 14 -6 0 -13 -4 -16 -10z\"/>\n</g>\n</svg>\n", 'image/svg+xml')).firstChild;
+	}
+
+	const LAYER_CIRCLE = 'controls-layer-circle';
+	const LAYER_AREA = 'controls-layer-area';
+	const LAYER_RADIUS = 'controls-layer-radius';
+	const SOURCE_CIRCLE = 'controls-source-circle';
+	const SOURCE_AREA = 'controls-source-area';
+	const SOURCE_RADIUS = 'controls-source-radius';
+	const MAIN_COLOR$1 = 'orange';
+	const HALO_COLOR$1 = '#fff';
+	const TEXT_COLOR = '#263238';
+
+	function geoPolygon(coordinates = []) {
+	  return {
+	    type: 'Feature',
+	    properties: {
+	      isCircle: true,
+	      center: [],
+	    },
+	    geometry: {
+	      type: 'Polygon',
+	      coordinates,
+	    },
+	  };
+	}
+
+	function geoPoint$1(coordinates = [], labels = []) {
+	  return {
+	    type: 'FeatureCollection',
+	    features: coordinates.map((c, i) => ({
+	      type: 'Feature',
+	      properties: {
+	        text: labels[i],
+	      },
+	      geometry: {
+	        type: 'Point',
+	        coordinates: c,
+	      },
+	    })),
+	  };
+	}
+
+	function formatArea(value) {
+	  let nbchar = '';
+	  let ha = 0;
+	  let a = 0;
+	  let ca = 0;
+
+	  if (value < 0) {
+	    nbchar += '-';
+	  }
+
+	  const num = Math.abs(value);
+	  ha = Math.floor(num / 10000);
+	  a = Math.floor(num / 100) - ha * 100;
+	  ca = Math.floor(num) - ha * 10000 - a * 100;
+
+	  if (ha !== 0) {
+	    nbchar += `${ha} ha `;
+	  }
+	  if (a !== 0 || ha !== 0) {
+	    nbchar += `${a} a `;
+	  }
+	  if (ca !== 0) {
+	    nbchar += `${ca} ca`;
+	  }
+	  return nbchar;
+	}
+
+	function calculateCircleArea(radius) {
+	  const radiusInMeters = radius * 1000;
+	  const area = Math.round(2 * Math.PI * radiusInMeters * radiusInMeters);
+	  return formatArea(area);
+	}
+
+	/**
+	 * Fires map `circle.on` and `circle.off`events at the beginning and at the end of measuring.
+	 * @param {Object} options
+	 * @param {String} [options.units='kilometers'] -
+	 * Any units [@turf/distance](https://github.com/Turfjs/turf/tree/master/packages/turf-distance) supports
+	 * Can be used to convert value to any measuring units
+	 * @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
+	 * @param {String} [options.mainColor='#263238'] - Color of ruler lines.
+	 * @param {String} [options.secondaryColor='#fff'] - Color of halo and inner marker background.
+	 */
+
+	class CircleControl {
+	  constructor(options = {}) {
+	    this.isMeasuring = false;
+	    this.circles = [];
+	    this.units = options.units || 'kilometers';
+	    this.font = options.font || ['Roboto Medium'];
+	    this.mainColor = options.mainColor || MAIN_COLOR$1;
+	    this.textColor = options.textColor || TEXT_COLOR;
+	    this.secondaryColor = options.secondaryColor || HALO_COLOR$1;
+	    this.mapMouseDownListener = this.mapMouseDownListener.bind(this);
+	    this.mapDragListener = this.mapDragListener.bind(this);
+	    this.styleLoadListener = this.styleLoadListener.bind(this);
+	  }
+
+	  indexOfCircles() {
+	    return this.circles.length - 1;
+	  }
+
+	  insertControls() {
+	    this.container = document.createElement('div');
+	    this.container.classList.add('mapboxgl-ctrl');
+	    this.container.classList.add('mapboxgl-ctrl-group');
+	    this.container.classList.add('mapboxgl-ctrl-circle');
+	    this.button = document.createElement('button');
+	    this.button.setAttribute('type', 'button');
+	    this.button.appendChild(iconRuler$1());
+	    this.container.appendChild(this.button);
+	  }
+
+	  measuringOn() {
+	    this.isMeasuring = true;
+	    this.map.getCanvas().style.cursor = 'crosshair';
+	    this.button.classList.add('-active');
+	    this.map.on('mousedown', this.mapMouseDownListener);
+	    this.map.on('style.load', this.styleLoadListener);
+	    this.map.fire('circle.on');
+	  }
+
+	  measuringOff() {
+	    this.isMeasuring = false;
+	    this.map.getCanvas().style.cursor = '';
+	    this.button.classList.remove('-active');
+
+	    // Remove layers, sources and event listeners for each circle
+	    for (let i = 0; i <= this.indexOfCircles(); i += 1) {
+	      this.map.removeLayer(LAYER_CIRCLE + i);
+	      this.map.removeSource(SOURCE_CIRCLE + i);
+	      this.map.removeLayer(LAYER_AREA + i);
+	      this.map.removeSource(SOURCE_AREA + i);
+	      this.map.removeLayer(LAYER_RADIUS + i);
+	      this.map.removeSource(SOURCE_RADIUS + i);
+	    }
+	    this.circles = [];
+	    this.map.off('mousedown', this.mapMouseDownListener);
+	    this.map.off('style.load', this.styleLoadListener);
+	    this.map.fire('circle.off');
+	  }
+
+	  // Create the sources and layers for a circle
+	  addSourcesAndLayers(circleNumber) {
+	    // The circle itself
+	    this.map.addSource(SOURCE_CIRCLE + circleNumber, {
+	      type: 'geojson',
+	      data: geoPolygon(),
+	    });
+
+	    this.map.addLayer({
+	      id: LAYER_CIRCLE + circleNumber,
+	      type: 'fill',
+	      source: SOURCE_CIRCLE + circleNumber,
+	      paint: {
+	        'fill-color': this.mainColor,
+	        'fill-opacity': 0.3,
+	        'fill-outline-color': 'blue',
+	      },
+	    });
+
+	    // The area of the circle in the middle
+	    this.map.addSource(SOURCE_AREA + circleNumber, {
+	      type: 'geojson',
+	      data: geoPoint$1(),
+	    });
+
+	    this.map.addLayer({
+	      id: LAYER_AREA + circleNumber,
+	      type: 'symbol',
+	      source: SOURCE_AREA + circleNumber,
+	      layout: {
+	        'text-field': '{area}',
+	        'text-font': this.font,
+	        'text-anchor': 'center',
+	        'text-size': 14,
+	        'text-justify': 'auto',
+	      },
+	      paint: {
+	        'text-color': this.textColor,
+	        'text-halo-color': this.secondaryColor,
+	        'text-halo-width': 1,
+	      },
+	    });
+
+	    // The radius of the circle at the top
+	    this.map.addSource(SOURCE_RADIUS + circleNumber, {
+	      type: 'geojson',
+	      data: geoPoint$1(),
+	    });
+
+	    this.map.addLayer({
+	      id: LAYER_RADIUS + circleNumber,
+	      type: 'symbol',
+	      source: SOURCE_RADIUS + circleNumber,
+	      layout: {
+	        'text-field': '{radius}',
+	        'text-font': this.font,
+	        'text-anchor': 'center',
+	        'text-size': 14,
+	        'text-offset': [0, -0.6],
+	      },
+	      paint: {
+	        'text-color': this.textColor,
+	        'text-halo-color': this.secondaryColor,
+	        'text-halo-width': 1,
+	      },
+	    });
+	  }
+
+	  // When a new style is loaded (e.g. Satellite), we need to draw again all the layers
+	  drawAllLayers() {
+	    for (let i = 0; i <= this.indexOfCircles(); i += 1) {
+	      this.addSourcesAndLayers(i);
+
+	      // #Fix. This is tricky, and maybe there is a simpler way, but the style.load event
+	      // is not enough for this case. Events in Mapbox are a bit messy, and we need to listen
+	      // also this styledata (when any style changes) to re-draw our layers, otherwise they
+	      // will be under the new Tiles loaded.
+	      this.map.on('styledata', () => {
+	        if (this.map.getSource(SOURCE_CIRCLE + i)) {
+	          const currentCircle = this.circles[i];
+	          const circleFeature = circle(currentCircle.center, currentCircle.radius);
+	          this.map.getSource(SOURCE_CIRCLE + i).setData(circleFeature);
+
+	          this.map.getSource(SOURCE_AREA + i)
+	            .setData(helpers_7(currentCircle.center,
+	              { area: calculateCircleArea(currentCircle.radius) }));
+
+	          // Display the radius at the top of the circle
+	          const distanceInMeters = Math.round(currentCircle.radius * 1000);
+	          const pointCenter = helpers_7(currentCircle.center, { radius: `${distanceInMeters} m` });
+	          const topCircle = transformTranslate(pointCenter, currentCircle.radius, 0);
+	          this.map.getSource(SOURCE_RADIUS + i).setData(topCircle);
+
+	          // When our layers, we can unsubscribe for this event.
+	          this.map.off('styledata');
+	        }
+	      });
+	    }
+	  }
+
+	  // When the moiuse is down, we start listening the drag to draw the circle
+	  mapMouseDownListener(event) {
+	    this.initCircle();
+	    this.addSourcesAndLayers(this.indexOfCircles());
+
+	    this.map.dragPan.disable();
+
+	    this.circles[this.indexOfCircles()].center = [event.lngLat.lng, event.lngLat.lat];
+	    this.map.on('mousemove', this.mapDragListener);
+
+	    this.map.on('mouseup', () => {
+	      this.map.off('mousemove', this.mapDragListener);
+	      this.map.dragPan.enable();
+	    });
+	  }
+
+	  // When there is drag: update the circle, the radius and the area.
+	  mapDragListener(event) {
+	    const { center } = this.circles[this.indexOfCircles()];
+	    if (center.length > 0) {
+	      const distanceInKilometers = distance(
+	        helpers_7(center),
+	        helpers_7([event.lngLat.lng, event.lngLat.lat]),
+	        { units: 'kilometers' },
+	      );
+	      const circleFeature = circle(center, distanceInKilometers);
+	      this.map.getSource(SOURCE_CIRCLE + this.indexOfCircles()).setData(circleFeature);
+	      this.circles[this.indexOfCircles()].radius = distanceInKilometers;
+
+	      this.map.getSource(SOURCE_AREA + this.indexOfCircles())
+	        .setData(helpers_7(center, { area: calculateCircleArea(distanceInKilometers) }));
+
+	      // Display the radius at the top of the circle
+	      const distanceInMeters = Math.round(distanceInKilometers * 1000);
+	      const pointCenter = helpers_7(center, { radius: `${distanceInMeters} m` });
+	      const topCircle = transformTranslate(pointCenter, distanceInKilometers, 0);
+	      this.map.getSource(SOURCE_RADIUS + this.indexOfCircles()).setData(topCircle);
+	    }
+	  }
+
+	  // Create a new circle
+	  initCircle() {
+	    this.circles.push({});
+	    this.circles[this.indexOfCircles()] = {};
+	    this.circles[this.indexOfCircles()].center = [];
+	    this.circles[this.indexOfCircles()].radius = 0;
+	  }
+
+	  styleLoadListener() {
+	    this.drawAllLayers();
+	  }
+
+	  onAdd(map) {
+	    this.map = map;
+	    this.insertControls();
+	    this.button.addEventListener('click', () => {
+	      if (this.isMeasuring) {
+	        this.measuringOff();
+	      } else {
+	        this.measuringOn();
+	      }
+	    });
+	    return this.container;
+	  }
+
+	  onRemove() {
+	    if (this.isMeasuring) {
+	      this.measuringOff();
+	    }
+	    this.map.off('mousedown', this.mapMouseDownListener);
+	    this.container.parentNode.removeChild(this.container);
+	    this.map = undefined;
+	  }
+	}
+
 	function _classCallCheck$3(instance, Constructor) {
 	  if (!(instance instanceof Constructor)) {
 	    throw new TypeError("Cannot call a class as a function");
@@ -3994,6 +5154,9 @@
 
 	/* Ruler */
 	map.addControl(new AreaControl(), 'bottom-right');
+	
+	/* Circle */
+	map.addControl(new CircleControl(), 'bottom-right');
 
 	/* Inspect */
 	map.addControl(new InspectControl(), 'bottom-right');

@@ -32,7 +32,9 @@
     "@turf/center": "^6.0.1",
     "@turf/centroid": "^6.0.2",
     "@turf/distance": "6.0.1",
-    "@turf/helpers": "^6.1.4"
+    "@turf/helpers": "^6.1.4",
+    "@turf/circle": "^6.0.1",
+    "@turf/transform-translate": "^5.1.5"
   },
   "peerDependencies": {
     "mapbox-gl": ">=1.0.0 <2.0.0"

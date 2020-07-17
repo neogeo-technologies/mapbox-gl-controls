@@ -2,6 +2,7 @@ import mapboxgl from 'mapbox-gl';
 import StylesControl from '../lib/styles';
 import CompassControl from '../lib/compass';
 import RulerControl from '../lib/ruler';
+import CircleControl from '../src/circle/circle';
 import ZoomControl from '../lib/zoom';
 import LanguageControl from '../lib/language';
 import InspectControl from '../lib/inspect';
@@ -57,6 +58,9 @@ map.addControl(new RulerControl(), 'bottom-right');
 
 /* Ruler */
 map.addControl(new AreaControl(), 'bottom-right');
+
+/* Circle */
+map.addControl(new CircleControl(), 'bottom-right');
 
 /* Inspect */
 map.addControl(new InspectControl(), 'bottom-right');

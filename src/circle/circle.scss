@@ -1,0 +1,12 @@
+.mapboxgl-ctrl-circle {
+  button {
+    svg {
+      height: 21px;
+    }
+    &.-active {
+      svg g {
+        fill: #4264fb;
+      }
+    }
+  }
+}
