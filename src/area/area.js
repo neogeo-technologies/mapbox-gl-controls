@@ -16,6 +16,7 @@ const HALO_COLOR = '#fff';
 const TEXT_COLOR = '#263238';
 
 function geoPolygon(coordinates = []) {
+  console.log(coordinates)
   return {
     type: 'Feature',
     properties: {},
@@ -210,6 +211,7 @@ export default class AreaControl {
   // Create the sources and layers for a polygon
   addSourcesAndLayers(polygonNumber) {
     // The polygon itself
+    console.log(geoPolygon(this.polygons[polygonNumber].coordinates))
     this.map.addSource(SOURCE_POLYGON + polygonNumber, {
       type: 'geojson',
       data: geoPolygon(this.polygons[polygonNumber].coordinates),
