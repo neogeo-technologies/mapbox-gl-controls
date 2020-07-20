@@ -248,6 +248,7 @@ export default class CircleControl {
 
   // When the moiuse is down, we start listening the drag to draw the circle
   mapMouseDownListener(event) {
+    console.log(event)
     this.initCircle();
     this.addSourcesAndLayers(this.indexOfCircles());
 

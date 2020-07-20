@@ -281,6 +281,7 @@ export default class AreaControl {
   // * update the polygon and symbols (distance) sources
   // * calculate and display the area
   mapClickListener(event) {
+    console.log(event)
     if (this.isPolygonClosed) {
       this.initPolygon();
       this.addSourcesAndLayers(this.indexOfPolygons());

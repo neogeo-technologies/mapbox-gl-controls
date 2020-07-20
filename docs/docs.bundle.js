@@ -2669,6 +2669,7 @@
 
 	  // When the moiuse is down, we start listening the drag to draw the circle
 	  mapMouseDownListener(event) {
+	    console.log(event);
 	    this.initCircle();
 	    this.addSourcesAndLayers(this.indexOfCircles());
 
@@ -4985,6 +4986,7 @@
 	  // * update the polygon and symbols (distance) sources
 	  // * calculate and display the area
 	  mapClickListener(event) {
+	    console.log(event);
 	    if (this.isPolygonClosed) {
 	      this.initPolygon();
 	      this.addSourcesAndLayers(this.indexOfPolygons());
