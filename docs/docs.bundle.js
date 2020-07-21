@@ -2436,7 +2436,6 @@
 	const TEXT_COLOR = '#263238';
 
 	function geoPolygon(coordinates = []) {
-	  console.log(coordinates);
 	  return {
 	    type: 'Feature',
 	    properties: {
@@ -2451,7 +2450,6 @@
 	}
 
 	function geoPoint$1(coordinates = [], labels = []) {
-	  console.log(coordinates);
 	  return {
 	    type: 'FeatureCollection',
 	    features: coordinates.map((c, i) => ({
@@ -2572,7 +2570,6 @@
 	  // Create the sources and layers for a circle
 	  addSourcesAndLayers(circleNumber) {
 	    // The circle itself
-	    console.log(geoPolygon());
 	    this.map.addSource(SOURCE_CIRCLE + circleNumber, {
 	      type: 'geojson',
 	      data: geoPolygon(),
@@ -2672,7 +2669,6 @@
 
 	  // When the moiuse is down, we start listening the drag to draw the circle
 	  mapMouseDownListener(event) {
-	    console.log(event);
 	    this.initCircle();
 	    this.addSourcesAndLayers(this.indexOfCircles());
 
@@ -4724,7 +4720,6 @@
 	const TEXT_COLOR$1 = '#263238';
 
 	function geoPolygon$1(coordinates = []) {
-	  console.log(coordinates);
 	  return {
 	    type: 'Feature',
 	    properties: {},
@@ -4919,7 +4914,6 @@
 	  // Create the sources and layers for a polygon
 	  addSourcesAndLayers(polygonNumber) {
 	    // The polygon itself
-	    console.log(geoPolygon$1(this.polygons[polygonNumber].coordinates));
 	    this.map.addSource(SOURCE_POLYGON + polygonNumber, {
 	      type: 'geojson',
 	      data: geoPolygon$1(this.polygons[polygonNumber].coordinates),
@@ -4991,7 +4985,6 @@
 	  // * update the polygon and symbols (distance) sources
 	  // * calculate and display the area
 	  mapClickListener(event) {
-	    console.log(event);
 	    if (this.isPolygonClosed) {
 	      this.initPolygon();
 	      this.addSourcesAndLayers(this.indexOfPolygons());
