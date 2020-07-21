@@ -1,11 +1,12 @@
 .mapboxgl-ctrl-circle {
   button {
     svg {
-      height: 21px;
+      height: 22px;
     }
     &.-active {
-      svg g {
-        fill: #4264fb;
+      svg path,
+      svg ellipse {
+        stroke: #4264fb;
       }
     }
   }

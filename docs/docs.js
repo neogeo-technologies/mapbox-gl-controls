@@ -2,12 +2,12 @@ import mapboxgl from 'mapbox-gl';
 import StylesControl from '../lib/styles';
 import CompassControl from '../lib/compass';
 import RulerControl from '../lib/ruler';
-import CircleControl from '../src/circle/circle';
+import CircleControl from '../lib/circle';
 import ZoomControl from '../lib/zoom';
 import LanguageControl from '../lib/language';
 import InspectControl from '../lib/inspect';
 import TooltipControl from '../lib/tooltip';
-import AreaControl from '../src/area/area';
+import AreaControl from '../lib/area';
 
 mapboxgl.accessToken =
   'pk.eyJ1IjoiYnJhdmVjb3ciLCJhIjoiY2o1ODEwdWljMThwbTJ5bGk0a294ZmVybiJ9.kErON3w2kwEVxU5aNa-EqQ';

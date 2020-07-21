@@ -16,7 +16,6 @@ const HALO_COLOR = '#fff';
 const TEXT_COLOR = '#263238';
 
 function geoPolygon(coordinates = []) {
-  console.log(coordinates)
   return {
     type: 'Feature',
     properties: {},
@@ -91,14 +90,14 @@ function calculatePolygonSuperficy(coordinates) {
 }
 
 /**
-* @param {Object} options
-* @param {String} [options.units='square-kilometers']
-* @param {Function} [options.labelFormat] - Accepts number and returns label.
-* Can be used to convert value to hectare, are, centiare.
-* @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
-* @param {String} [options.mainColor='#263238'] - Color of ruler lines.
-* @param {String} [options.secondaryColor='#fff'] - Color of halo and inner marker background.
-*/
+ * @param {Object} options
+ * @param {String} [options.units='square-kilometers']
+ * @param {Function} [options.labelFormat] - Accepts number and returns label.
+ * Can be used to convert value to hectare, are, centiare.
+ * @param {Array} [options.font=['Roboto Medium']] - Array of fonts.
+ * @param {String} [options.mainColor='#263238'] - Color of ruler lines.
+ * @param {String} [options.secondaryColor='#fff'] - Color of halo and inner marker background.
+ */
 
 export default class AreaControl {
   constructor(options = {}) {
@@ -188,16 +187,22 @@ export default class AreaControl {
       // to re-draw our layers, otherwise they will be under the new Tiles loaded.
       this.map.on('styledata', () => {
         if (this.map.getSource(SOURCE_POLYGON + i)) {
-          this.map.getSource(SOURCE_POLYGON + i)
+          this.map
+            .getSource(SOURCE_POLYGON + i)
             .setData(geoPolygon([this.polygons[i].coordinates]));
           this.map
             .getSource(SOURCE_SYMBOL + i)
-            .setData(geoPoint(this.polygons[i].coordinates,
-              this.polygons[i].labels));
+            .setData(
+              geoPoint(this.polygons[i].coordinates, this.polygons[i].labels)
+            );
 
           if (this.polygons[i].coordinates.length > 3) {
-            const centroidPoly = centroid(polygon([this.polygons[i].coordinates]));
-            const textArea = calculatePolygonSuperficy(polygon([this.polygons[i].coordinates]));
+            const centroidPoly = centroid(
+              polygon([this.polygons[i].coordinates])
+            );
+            const textArea = calculatePolygonSuperficy(
+              polygon([this.polygons[i].coordinates])
+            );
             centroidPoly.properties.area = textArea;
             this.map.getSource(SOURCE_AREA + i).setData(centroidPoly);
           }
@@ -211,7 +216,6 @@ export default class AreaControl {
   // Create the sources and layers for a polygon
   addSourcesAndLayers(polygonNumber) {
     // The polygon itself
-    console.log(geoPolygon(this.polygons[polygonNumber].coordinates))
     this.map.addSource(SOURCE_POLYGON + polygonNumber, {
       type: 'geojson',
       data: geoPolygon(this.polygons[polygonNumber].coordinates),
@@ -231,8 +235,10 @@ export default class AreaControl {
     // The distance points and symbols
     this.map.addSource(SOURCE_SYMBOL + polygonNumber, {
       type: 'geojson',
-      data: geoPoint(this.polygons[polygonNumber].coordinates,
-        this.polygons[polygonNumber].labels),
+      data: geoPoint(
+        this.polygons[polygonNumber].coordinates,
+        this.polygons[polygonNumber].labels
+      ),
     });
 
     this.map.addLayer({
@@ -283,7 +289,6 @@ export default class AreaControl {
   // * update the polygon and symbols (distance) sources
   // * calculate and display the area
   mapClickListener(event) {
-    console.log(event)
     if (this.isPolygonClosed) {
       this.initPolygon();
       this.addSourcesAndLayers(this.indexOfPolygons());
@@ -297,26 +302,44 @@ export default class AreaControl {
         .addTo(this.map);
 
       // Update the polygon and symbol sources with the new data
-      this.polygons[this.indexOfPolygons()].coordinates.push([event.lngLat.lng, event.lngLat.lat]);
-      this.polygons[this.indexOfPolygons()].labels = this.coordinatesToLabels(this.indexOfPolygons());
-      this.map.getSource(SOURCE_POLYGON + this.indexOfPolygons())
-        .setData(geoPolygon([this.polygons[this.indexOfPolygons()].coordinates]));
+      this.polygons[this.indexOfPolygons()].coordinates.push([
+        event.lngLat.lng,
+        event.lngLat.lat,
+      ]);
+      this.polygons[this.indexOfPolygons()].labels = this.coordinatesToLabels(
+        this.indexOfPolygons()
+      );
+      this.map
+        .getSource(SOURCE_POLYGON + this.indexOfPolygons())
+        .setData(
+          geoPolygon([this.polygons[this.indexOfPolygons()].coordinates])
+        );
       this.map
         .getSource(SOURCE_SYMBOL + this.indexOfPolygons())
-        .setData(geoPoint(this.polygons[this.indexOfPolygons()].coordinates,
-          this.polygons[this.indexOfPolygons()].labels));
+        .setData(
+          geoPoint(
+            this.polygons[this.indexOfPolygons()].coordinates,
+            this.polygons[this.indexOfPolygons()].labels
+          )
+        );
 
       this.polygons[this.indexOfPolygons()].markers.push(marker);
       this.polygons[this.indexOfPolygons()].markerNodes.push(markerNode);
 
       // Calculate and display the area
       if (this.polygons[this.indexOfPolygons()].coordinates.length > 2) {
-        const temporaryCoordinates = [...this.polygons[this.indexOfPolygons()].coordinates];
+        const temporaryCoordinates = [
+          ...this.polygons[this.indexOfPolygons()].coordinates,
+        ];
         temporaryCoordinates.push(temporaryCoordinates[0]); // Close artifially the polygon to draw it
         const centroidPoly = centroid(polygon([temporaryCoordinates]));
-        const textArea = calculatePolygonSuperficy(polygon([temporaryCoordinates]));
+        const textArea = calculatePolygonSuperficy(
+          polygon([temporaryCoordinates])
+        );
         centroidPoly.properties.area = textArea;
-        this.map.getSource(SOURCE_AREA + this.indexOfPolygons()).setData(centroidPoly);
+        this.map
+          .getSource(SOURCE_AREA + this.indexOfPolygons())
+          .setData(centroidPoly);
       }
 
       // This event is used to know when to close the polygon. two points allow that:
@@ -327,8 +350,9 @@ export default class AreaControl {
       // So to keep the logic above working, after each new point we unsubscribe the click event on previous marker,
       // to keep active only the first and last markers.
       if (this.polygons[this.indexOfPolygons()].coordinates.length > 2) {
-        this.polygons[this.indexOfPolygons()].markerNodes[this.polygons[this.indexOfPolygons()].coordinates.length - 2]
-          .removeEventListener('click', this.closePolygon.bind(this));
+        this.polygons[this.indexOfPolygons()].markerNodes[
+          this.polygons[this.indexOfPolygons()].coordinates.length - 2
+        ].removeEventListener('click', this.closePolygon.bind(this));
       }
     }
   }
@@ -346,9 +370,10 @@ export default class AreaControl {
 
   closePolygon() {
     const firstMarker = this.polygons[this.indexOfPolygons()].markers[0];
-    this.polygons[this.indexOfPolygons()].coordinates.push(
-      [firstMarker.getLngLat().lng, firstMarker.getLngLat().lat],
-    );
+    this.polygons[this.indexOfPolygons()].coordinates.push([
+      firstMarker.getLngLat().lng,
+      firstMarker.getLngLat().lat,
+    ]);
 
     this.isPolygonClosed = true;
   }
@@ -357,7 +382,9 @@ export default class AreaControl {
   mapMouseMoveListener(event) {
     if (this.polygons[this.indexOfPolygons()].coordinates.length > 1) {
       const { lngLat } = event;
-      const temporaryCoordinates = [...this.polygons[this.indexOfPolygons()].coordinates];
+      const temporaryCoordinates = [
+        ...this.polygons[this.indexOfPolygons()].coordinates,
+      ];
       temporaryCoordinates.push([lngLat.lng, lngLat.lat]);
       temporaryCoordinates.push(temporaryCoordinates[0]); // Close artifially the polygon to draw it
       this.map

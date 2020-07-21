@@ -15,7 +15,6 @@ const HALO_COLOR = '#fff';
 const TEXT_COLOR = '#263238';
 
 function geoPolygon(coordinates = []) {
-  console.log(coordinates)
   return {
     type: 'Feature',
     properties: {
@@ -30,7 +29,6 @@ function geoPolygon(coordinates = []) {
 }
 
 function geoPoint(coordinates = [], labels = []) {
-  console.log(coordinates)
   return {
     type: 'FeatureCollection',
     features: coordinates.map((c, i) => ({
@@ -151,7 +149,6 @@ export default class CircleControl {
   // Create the sources and layers for a circle
   addSourcesAndLayers(circleNumber) {
     // The circle itself
-    console.log(geoPolygon())
     this.map.addSource(SOURCE_CIRCLE + circleNumber, {
       type: 'geojson',
       data: geoPolygon(),
@@ -251,7 +248,6 @@ export default class CircleControl {
 
   // When the moiuse is down, we start listening the drag to draw the circle
   mapMouseDownListener(event) {
-    console.log(event)
     this.initCircle();
     this.addSourcesAndLayers(this.indexOfCircles());
 
