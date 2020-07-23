@@ -4,8 +4,7 @@
       height: 22px;
     }
     &.-active {
-      svg path,
-      svg ellipse {
+      svg g {
         stroke: #4264fb;
       }
     }

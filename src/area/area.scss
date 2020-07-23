@@ -2,8 +2,8 @@
   color: red;
   button {
     &.-active {
-      svg {
-        fill: #4264fb;
+      svg g {
+        stroke: #4264fb;
       }
     }
   }
