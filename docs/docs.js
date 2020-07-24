@@ -2,12 +2,15 @@ import mapboxgl from 'mapbox-gl';
 import StylesControl from '../lib/styles';
 import CompassControl from '../lib/compass';
 import RulerControl from '../lib/ruler';
+import CircleControl from '../lib/circle';
 import ZoomControl from '../lib/zoom';
 import LanguageControl from '../lib/language';
 import InspectControl from '../lib/inspect';
 import TooltipControl from '../lib/tooltip';
+import AreaControl from '../lib/area';
 
-mapboxgl.accessToken = 'pk.eyJ1IjoiYnJhdmVjb3ciLCJhIjoiY2o1ODEwdWljMThwbTJ5bGk0a294ZmVybiJ9.kErON3w2kwEVxU5aNa-EqQ';
+mapboxgl.accessToken =
+  'pk.eyJ1IjoiYnJhdmVjb3ciLCJhIjoiY2o1ODEwdWljMThwbTJ5bGk0a294ZmVybiJ9.kErON3w2kwEVxU5aNa-EqQ';
 
 const languages = document.getElementById('languages');
 const map = new mapboxgl.Map({
@@ -40,15 +43,24 @@ languages.addEventListener('change', () => {
 });
 
 /* Style */
-map.addControl(new StylesControl({
-  onChange: () => languages.value = '',
-}), 'top-left');
+map.addControl(
+  new StylesControl({
+    onChange: () => (languages.value = ''),
+  }),
+  'top-left'
+);
 
 /* Zoom */
 map.addControl(new ZoomControl(), 'bottom-right');
 
-/* Ruler */
+/* Area */
 map.addControl(new RulerControl(), 'bottom-right');
+
+/* Ruler */
+map.addControl(new AreaControl(), 'bottom-right');
+
+/* Circle */
+map.addControl(new CircleControl(), 'bottom-right');
 
 /* Inspect */
 map.addControl(new InspectControl(), 'bottom-right');
@@ -81,9 +93,11 @@ map.on('load', () => {
       'line-color': '#4264fb',
     },
   });
-  map.addControl(new TooltipControl({
-    layer: '$fill',
-  }));
+  map.addControl(
+    new TooltipControl({
+      layer: '$fill',
+    })
+  );
 });
 
 /* Example for mapbox issue: https://github.com/mapbox/mapbox-gl-js/issues/8765 */
